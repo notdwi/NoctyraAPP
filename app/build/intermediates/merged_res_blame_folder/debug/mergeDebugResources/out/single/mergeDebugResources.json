@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "com.noctyra.app-debug-59:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.noctyra.app-main-61:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "C:\\Users\\notdwi\\.gradle\\daemon\\8.9\\com.noctyra.app-debug-59:\\drawable_noc_logo.png.flat",
+        "source": "C:\\Users\\notdwi\\.gradle\\daemon\\8.9\\com.noctyra.app-main-61:\\drawable\\noc_logo.png"
+    },
+    {
+        "merged": "C:\\Users\\notdwi\\.gradle\\daemon\\8.9\\com.noctyra.app-debug-59:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "C:\\Users\\notdwi\\.gradle\\daemon\\8.9\\com.noctyra.app-main-61:\\mipmap-anydpi-v26\\ic_launcher.xml"
+    },
+    {
+        "merged": "C:\\Users\\notdwi\\.gradle\\daemon\\8.9\\com.noctyra.app-debug-59:\\xml_network_security_config.xml.flat",
+        "source": "C:\\Users\\notdwi\\.gradle\\daemon\\8.9\\com.noctyra.app-main-61:\\xml\\network_security_config.xml"
+    },
+    {
+        "merged": "com.noctyra.app-debug-59:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.noctyra.app-main-61:/mipmap-anydpi-v26/ic_launcher.xml"
+    }
+]
