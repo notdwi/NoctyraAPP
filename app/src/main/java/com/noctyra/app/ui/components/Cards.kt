@@ -63,7 +63,7 @@ fun AnimeCard(anime: Anime, onClick: () -> Unit, modifier: Modifier = Modifier) 
                         .align(Alignment.TopStart)
                         .padding(6.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Accent.copy(0.9f))
+                        .background(Pink.copy(0.9f))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
@@ -153,7 +153,7 @@ fun EpisodeCard(episode: Episode, animePoster: String, onClick: () -> Unit, modi
                     .align(Alignment.Center)
                     .size(28.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Accent.copy(0.88f)),
+                    .background(Pink.copy(0.88f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text("▶", color = Color.White, style = MaterialTheme.typography.labelSmall)
@@ -196,7 +196,7 @@ fun SettingsCard(
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Accent.copy(0.14f)),
+                .background(Pink.copy(0.14f)),
             contentAlignment = Alignment.Center
         ) { icon() }
         Spacer(Modifier.width(14.dp))

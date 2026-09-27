@@ -54,8 +54,8 @@ fun NoctyraButton(
             modifier = modifier.height(44.dp),
             shape = RoundedCornerShape(22.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Accent,
-                disabledContainerColor = Accent.copy(alpha = 0.35f)
+                containerColor = Pink,
+                disabledContainerColor = Pink.copy(alpha = 0.35f)
             )
         ) {
             if (icon != null) {
@@ -77,7 +77,7 @@ fun GenreChip(text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        color = Accent.copy(alpha = 0.12f)
+        color = Pink.copy(alpha = 0.12f)
     ) {
         Text(
             text = text,
@@ -125,7 +125,7 @@ fun SectionHeader(
                     .width(3.dp)
                     .height(18.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Accent)
+                    .background(Pink)
             )
             Spacer(Modifier.width(10.dp))
             Text(title, style = MaterialTheme.typography.titleMedium)
@@ -134,7 +134,7 @@ fun SectionHeader(
             Text(
                 text = "Ver todos →",
                 style = MaterialTheme.typography.labelMedium,
-                color = Accent,
+                color = Pink,
                 modifier = Modifier.clickable { onSeeAll() }
             )
         }
@@ -145,7 +145,7 @@ fun SectionHeader(
 fun LoadingScreen(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(
-            color = Accent,
+            color = Pink,
             strokeWidth = 2.5.dp,
             modifier = Modifier.size(36.dp)
         )
@@ -172,7 +172,7 @@ fun ErrorScreen(message: String, onRetry: (() -> Unit)? = null, modifier: Modifi
 @Composable
 fun SeasonTab(season: Int, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val bgColor by animateColorAsState(
-        if (isSelected) Accent else Color.Transparent, animationSpec = tween(200), label = "seasonTab"
+        if (isSelected) Pink else Color.Transparent, animationSpec = tween(200), label = "seasonTab"
     )
     val textColor by animateColorAsState(
         if (isSelected) Color.White else TextSecondary, animationSpec = tween(200), label = "seasonText"

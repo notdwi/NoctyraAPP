@@ -8,43 +8,45 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Noctyra Design System Colors
-val Accent         = Color(0xFFFF6B35)   // vibrant orange-red accent
-val AccentDark     = Color(0xFFCC4A1A)
-val AccentLight    = Color(0xFFFF9164)
-val Purple         = Color(0xFF9B7DFF)   // kept for backward compat
+// ── Noctyra Design System ── Rosa + Preto ──────────────────────────────────
+val Pink           = Color(0xFFE91E8C)   // rosa vibrante principal
+val PinkLight      = Color(0xFFFF5CBE)   // rosa claro
+val PinkDark       = Color(0xFFB5006B)   // rosa escuro
+val PinkContainer  = Color(0xFF3A0025)   // fundo de containers rosa
+val Purple         = Color(0xFF9B7DFF)   // mantido por compat.
 val PurpleLight    = Color(0xFFB8A1FF)
 val PurpleDark     = Color(0xFF7C5CE0)
-val BackgroundDark = Color(0xFF0A0A0F)   // near-black deep background
-val SurfaceDark    = Color(0xFF12121A)
-val SurfaceCard    = Color(0xFF1A1A24)
-val SurfaceElevated= Color(0xFF22222E)
-val CardDark       = Color(0xFF1A1A24)
-val TextPrimary    = Color(0xFFF5F4FF)
-val TextSecondary  = Color(0xFF8884A0)
-val TextMuted      = Color(0xFF4E4A66)
-val ErrorRed       = Color(0xFFFF5252)
-val Divider        = Color(0xFF1E1E2C)
+
+val BackgroundDark  = Color(0xFF080810)   // quase-preto fundo principal
+val SurfaceDark     = Color(0xFF0F0F1A)   // superfície sutil
+val SurfaceCard     = Color(0xFF15152A)   // card normal
+val SurfaceElevated = Color(0xFF1E1E35)   // card elevado
+val CardDark        = Color(0xFF15152A)
+val Accent          = Pink                // compat alias
+
+val TextPrimary   = Color(0xFFF2F0FF)
+val TextSecondary = Color(0xFF8884A0)
+val TextMuted     = Color(0xFF44415A)
+val ErrorRed      = Color(0xFFFF5252)
+val Divider       = Color(0xFF1A1A30)
 
 private val NoctyraColorScheme = darkColorScheme(
-    primary = Accent,
-    onPrimary = Color.White,
-    primaryContainer = AccentDark,
-    secondary = Purple,
-    background = BackgroundDark,
-    surface = SurfaceDark,
-    surfaceVariant = SurfaceElevated,
-    onBackground = TextPrimary,
-    onSurface = TextPrimary,
+    primary          = Pink,
+    onPrimary        = Color.White,
+    primaryContainer = PinkContainer,
+    secondary        = PinkLight,
+    background       = BackgroundDark,
+    surface          = SurfaceDark,
+    surfaceVariant   = SurfaceElevated,
+    onBackground     = TextPrimary,
+    onSurface        = TextPrimary,
     onSurfaceVariant = TextSecondary,
-    error = ErrorRed,
-    outline = Color(0xFF2A2A38)
+    error            = ErrorRed,
+    outline          = Color(0xFF2A2A45)
 )
 
 private val NoctyraTypography = Typography(

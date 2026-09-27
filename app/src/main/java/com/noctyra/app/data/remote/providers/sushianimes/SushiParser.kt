@@ -9,6 +9,7 @@ import org.jsoup.nodes.Document
 // Responsible for parsing SushiAnimes HTML pages into domain models
 internal object SushiParser {
 
+    // Returns list of (slug, title, posterUrl, isMovie)
     fun parseSearchResults(doc: Document): List<Pair<String, Boolean>> {
         val animePattern = Regex("^/anime/([a-z0-9-]+-\\d+)$")
         val moviePattern = Regex("^/assistir/([a-z0-9-]+-\\d+)$")
@@ -31,6 +32,69 @@ internal object SushiParser {
         }
         return results
     }
+
+    // Enriched version: extracts title + poster from search card HTML directly
+    fun parseSearchCards(doc: Document): List<Anime> {
+        val animePattern = Regex("^/anime/([a-z0-9-]+-\\d+)$")
+        val moviePattern = Regex("^/assistir/([a-z0-9-]+-\\d+)$")
+        val seen = mutableSetOf<String>()
+        val results = mutableListOf<Anime>()
+
+        // Try article cards first (WP theme typical structure)
+        val cards = doc.select("article.TPostMv, article.TPost, .TPostMv, .TPost, .flw-item, .film-poster, a.TPostMv")
+        if (cards.isNotEmpty()) {
+            cards.forEach { card ->
+                val link = card.selectFirst("a[href]") ?: card as? org.jsoup.nodes.Element ?: return@forEach
+                val href = link.attr("href").trimEnd('/')
+                val path = try { java.net.URI(href).path?.trimEnd('/') ?: return@forEach } catch (_: Exception) { return@forEach }
+
+                val matchAnime = animePattern.find(path)
+                val matchMovie = moviePattern.find(path)
+                val foundSlug = matchAnime?.groupValues?.get(1) ?: matchMovie?.groupValues?.get(1) ?: return@forEach
+                val isMovie = matchMovie != null
+                if (!seen.add(foundSlug)) return@forEach
+
+                val title = card.selectFirst(".Title, h2, h3, .film-name, .dynamic-name")?.text()?.trim()
+                    ?: SushiUtils.titleFromSlug(foundSlug)
+                val poster = card.selectFirst("img[src], img[data-src]")?.let {
+                    it.attr("data-src").ifEmpty { it.attr("src") }
+                } ?: ""
+
+                results.add(Anime(
+                    slug = if (isMovie) "$foundSlug-filme" else foundSlug,
+                    title = title,
+                    posterUrl = poster,
+                    isMovie = isMovie
+                ))
+            }
+            if (results.isNotEmpty()) return results
+        }
+
+        // Fallback: extract from any links on the page
+        doc.select("a[href*=/anime/], a[href*=/assistir/]").forEach { link ->
+            val href = link.attr("href").trimEnd('/')
+            val path = try { java.net.URI(href).path?.trimEnd('/') ?: return@forEach } catch (_: Exception) { return@forEach }
+            val matchAnime = animePattern.find(path)
+            val matchMovie = moviePattern.find(path)
+            val foundSlug = matchAnime?.groupValues?.get(1) ?: matchMovie?.groupValues?.get(1) ?: return@forEach
+            val isMovie = matchMovie != null
+            if (!seen.add(foundSlug)) return@forEach
+
+            val title = link.text().trim().ifEmpty { SushiUtils.titleFromSlug(foundSlug) }
+            val poster = link.selectFirst("img")?.let {
+                it.attr("data-src").ifEmpty { it.attr("src") }
+            } ?: ""
+
+            results.add(Anime(
+                slug = if (isMovie) "$foundSlug-filme" else foundSlug,
+                title = title,
+                posterUrl = poster,
+                isMovie = isMovie
+            ))
+        }
+        return results
+    }
+
 
     fun parseLatestReleases(doc: Document): List<Triple<String, String, String>> {
         // Returns list of (slug, title, thumbUrl)

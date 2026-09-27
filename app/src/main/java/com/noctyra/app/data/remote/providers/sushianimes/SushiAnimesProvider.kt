@@ -17,30 +17,36 @@ class SushiAnimesProvider : AnimeProvider {
     override val baseUrl = SushiUrls.BASE
 
     override suspend fun search(query: String): List<Anime> {
+        // Slugify and try query directly
         val slug = SushiUtils.slugify(query)
         val term = slug.replace("-", " ")
-        val doc = HttpClient.fetchDoc(SushiUrls.search(term), referer = "$baseUrl/")
-        val candidates = SushiParser.parseSearchResults(doc)
 
+        // Try WordPress search endpoint — gets enriched HTML cards
+        val doc = HttpClient.fetchDoc(SushiUrls.search(term), referer = "$baseUrl/")
+        val results = SushiParser.parseSearchCards(doc)
+
+        // If we got results with posters, return them directly (no extra requests)
+        val withPosters = results.filter { it.posterUrl.isNotEmpty() }
+        if (withPosters.isNotEmpty()) return withPosters
+
+        // Fallback: fetch poster for each result asynchronously (max 10)
         return coroutineScope {
-            candidates.map { (foundSlug, isMovie) ->
+            results.take(10).map { anime ->
                 async {
-                    val detailUrl = if (isMovie) SushiUrls.movieDetail(foundSlug) else SushiUrls.animeDetail(foundSlug)
+                    if (anime.posterUrl.isNotEmpty()) return@async anime
+                    val rawSlug = if (anime.isMovie) anime.slug.removeSuffix("-filme") else anime.slug
+                    val detailUrl = if (anime.isMovie) SushiUrls.movieDetail(rawSlug) else SushiUrls.animeDetail(rawSlug)
                     var posterUrl = ""
                     try {
                         val detailDoc = HttpClient.fetchDoc(detailUrl, referer = "$baseUrl/")
                         posterUrl = detailDoc.select("meta[property=og:image]").attr("content").trim()
                     } catch (_: Exception) {}
-                    Anime(
-                        slug = if (isMovie) "$foundSlug-filme" else foundSlug,
-                        title = SushiUtils.titleFromSlug(foundSlug),
-                        posterUrl = posterUrl,
-                        isMovie = isMovie
-                    )
+                    anime.copy(posterUrl = posterUrl)
                 }
             }.awaitAll()
         }
     }
+
 
     override suspend fun getLatestReleases(): List<Anime> {
         val doc = HttpClient.fetchDoc(SushiUrls.EPISODES_PAGE, referer = "$baseUrl/")

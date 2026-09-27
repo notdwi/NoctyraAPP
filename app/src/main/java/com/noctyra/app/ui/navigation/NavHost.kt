@@ -78,9 +78,9 @@ fun NoctyraNavHost() {
                                     )
                                 },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Accent,
+                                    selectedIconColor = Pink,
                                     unselectedIconColor = TextMuted,
-                                    indicatorColor = Accent.copy(alpha = 0.14f)
+                                    indicatorColor = Pink.copy(alpha = 0.14f)
                                 )
                             )
                         }

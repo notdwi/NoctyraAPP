@@ -23,7 +23,7 @@ import com.noctyra.app.data.model.AnimeDetail
 import com.noctyra.app.data.model.UiState
 import com.noctyra.app.ui.components.*
 import com.noctyra.app.ui.theme.BackgroundDark
-import com.noctyra.app.ui.theme.Accent
+import com.noctyra.app.ui.theme.Pink
 import com.noctyra.app.ui.theme.SurfaceCard
 import com.noctyra.app.ui.theme.TextPrimary
 import com.noctyra.app.ui.theme.TextSecondary
@@ -164,11 +164,11 @@ private fun StatsRow(anime: com.noctyra.app.data.model.Anime) {
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(anime.rating.ifEmpty { "N/A" }, style = MaterialTheme.typography.titleLarge, color = Accent)
+            Text(anime.rating.ifEmpty { "N/A" }, style = MaterialTheme.typography.titleLarge, color = Pink)
             Text("Nota", style = MaterialTheme.typography.bodySmall)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("${anime.totalEps}", style = MaterialTheme.typography.titleLarge, color = Accent)
+            Text("${anime.totalEps}", style = MaterialTheme.typography.titleLarge, color = Pink)
             Text("Episódios", style = MaterialTheme.typography.bodySmall)
         }
     }
