@@ -55,9 +55,9 @@ internal object SushiParser {
                 if (!seen.add(foundSlug)) return@forEach
 
                 var title = card.selectFirst(".Title, .film-name, .dynamic-name, .list-title")?.text()?.trim()
-                if (title.isNullOrEmpty() || title.equals("FULLHD", ignoreCase = true) || title.equals("HD", ignoreCase = true)) {
-                    title = card.selectFirst("img")?.attr("alt")?.trim()?.takeIf { it.isNotEmpty() }
-                        ?: link.attr("title").trim().takeIf { it.isNotEmpty() }
+                if (title.isNullOrEmpty() || title.contains("FULLHD", ignoreCase = true) || title.contains("HD", ignoreCase = true) || title.contains("FHD", ignoreCase = true)) {
+                    title = card.selectFirst("img")?.attr("alt")?.trim()?.takeIf { it.isNotEmpty() && !it.contains("FULLHD", true) }
+                        ?: link.attr("title").trim().takeIf { it.isNotEmpty() && !it.contains("FULLHD", true) }
                         ?: SushiUtils.titleFromSlug(foundSlug)
                 }
                 val poster = card.selectFirst("img[src], img[data-src]")?.let {
