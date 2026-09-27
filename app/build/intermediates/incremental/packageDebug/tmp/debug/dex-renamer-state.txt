@@ -1,4 +1,4 @@
-#Sat Sep 26 11:52:22 BRT 2026
+#Sat Sep 26 12:11:39 BRT 2026
 base.0=C\:\\Users\\notdwi\\Documents\\Noctyra\\NoctyraApp\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 base.1=C\:\\Users\\notdwi\\Documents\\Noctyra\\NoctyraApp\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
 base.10=C\:\\Users\\notdwi\\Documents\\Noctyra\\NoctyraApp\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\9\\classes.dex

@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.noctyra.app.ui.components.SettingsCard
-import com.noctyra.app.ui.theme.Purple
+import com.noctyra.app.ui.theme.Accent
 
 @Composable
 fun SettingsScreen() {
@@ -23,14 +23,14 @@ fun SettingsScreen() {
         Spacer(Modifier.height(8.dp))
 
         SettingsCard(
-            icon = { Icon(Icons.Default.Storage, contentDescription = null, tint = Purple) },
+            icon = { Icon(Icons.Default.Storage, contentDescription = null, tint = Accent) },
             title = "Armazenamento",
             subtitle = "Gerencie dados em cache e libere espaço.",
             onClick = { }
         )
 
         SettingsCard(
-            icon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = Purple) },
+            icon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = Accent) },
             title = "Backup e Restauração",
             subtitle = "Faça backup dos seus dados e restaure em qualquer dispositivo.",
             onClick = { }

@@ -23,7 +23,10 @@ import com.noctyra.app.data.model.AnimeDetail
 import com.noctyra.app.data.model.UiState
 import com.noctyra.app.ui.components.*
 import com.noctyra.app.ui.theme.BackgroundDark
-import com.noctyra.app.ui.theme.Purple
+import com.noctyra.app.ui.theme.Accent
+import com.noctyra.app.ui.theme.SurfaceCard
+import com.noctyra.app.ui.theme.TextPrimary
+import com.noctyra.app.ui.theme.TextSecondary
 
 @Composable
 fun DetailScreen(
@@ -160,8 +163,14 @@ private fun StatsRow(anime: com.noctyra.app.data.model.Anime) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        StatItem(value = anime.rating.ifEmpty { "N/A" }, label = "Nota")
-        StatItem(value = "${anime.totalEps}", label = "Episódios")
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(anime.rating.ifEmpty { "N/A" }, style = MaterialTheme.typography.titleLarge, color = Accent)
+            Text("Nota", style = MaterialTheme.typography.bodySmall)
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("${anime.totalEps}", style = MaterialTheme.typography.titleLarge, color = Accent)
+            Text("Episódios", style = MaterialTheme.typography.bodySmall)
+        }
     }
     Spacer(Modifier.height(12.dp))
 }
@@ -172,8 +181,8 @@ private fun TagsRow(anime: com.noctyra.app.data.model.Anime) {
         modifier = Modifier.padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        InfoChip(if (anime.isMovie) "FILME" else "SÉRIE")
-        InfoChip("${anime.totalEps} EP")
+        InfoBadge(if (anime.isMovie) "FILME" else "SÉRIE")
+        InfoBadge("${anime.totalEps} EP")
     }
     Spacer(Modifier.height(8.dp))
 }

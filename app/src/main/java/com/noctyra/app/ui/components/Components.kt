@@ -1,14 +1,15 @@
 package com.noctyra.app.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,11 +20,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.noctyra.app.ui.theme.Purple
-import com.noctyra.app.ui.theme.PurpleDark
-import com.noctyra.app.ui.theme.PurpleLight
+import com.noctyra.app.ui.theme.*
 
 @Composable
 fun NoctyraButton(
@@ -31,97 +29,126 @@ fun NoctyraButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    outlined: Boolean = false
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(48.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Purple,
-            disabledContainerColor = Purple.copy(alpha = 0.4f)
-        )
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
+    if (outlined) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.height(44.dp),
+            shape = RoundedCornerShape(22.dp),
+            border = ButtonDefaults.outlinedButtonBorder(enabled = true),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+        ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(text, style = MaterialTheme.typography.labelLarge)
         }
-        Text(text, style = MaterialTheme.typography.labelLarge)
+    } else {
+        Button(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.height(44.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Accent,
+                disabledContainerColor = Accent.copy(alpha = 0.35f)
+            )
+        ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(text, style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 
 @Composable
-fun PlayButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    NoctyraButton(
-        text = text,
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        icon = Icons.Default.PlayArrow
-    )
+fun PlayButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    NoctyraButton(text = text, onClick = onClick, modifier = modifier.fillMaxWidth(), icon = Icons.Default.PlayArrow)
 }
 
 @Composable
 fun GenreChip(text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = Color.Transparent,
-        border = ButtonDefaults.outlinedButtonBorder(enabled = true)
+        shape = RoundedCornerShape(20.dp),
+        color = Accent.copy(alpha = 0.12f)
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            color = PurpleLight,
+            color = AccentLight,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         )
     }
 }
 
 @Composable
-fun InfoChip(text: String, modifier: Modifier = Modifier) {
+fun InfoBadge(text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        shape = RoundedCornerShape(6.dp),
+        color = SurfaceElevated
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            color = TextSecondary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }
 }
 
 @Composable
-fun StatItem(value: String, label: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(2.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+fun SectionHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    showSeeAll: Boolean = false,
+    onSeeAll: (() -> Unit)? = null
+) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(top = 28.dp, bottom = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        action?.invoke()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(18.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Accent)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium)
+        }
+        if (showSeeAll && onSeeAll != null) {
+            Text(
+                text = "Ver todos →",
+                style = MaterialTheme.typography.labelMedium,
+                color = Accent,
+                modifier = Modifier.clickable { onSeeAll() }
+            )
+        }
     }
 }
 
 @Composable
 fun LoadingScreen(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = Purple, strokeWidth = 3.dp)
+        CircularProgressIndicator(
+            color = Accent,
+            strokeWidth = 2.5.dp,
+            modifier = Modifier.size(36.dp)
+        )
     }
 }
 
@@ -132,52 +159,27 @@ fun ErrorScreen(message: String, onRetry: (() -> Unit)? = null, modifier: Modifi
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(message, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+        Text("😕", style = MaterialTheme.typography.headlineLarge)
+        Spacer(Modifier.height(12.dp))
+        Text(message, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
         if (onRetry != null) {
-            Spacer(Modifier.height(16.dp))
-            NoctyraButton(text = "Retry", onClick = onRetry)
+            Spacer(Modifier.height(20.dp))
+            NoctyraButton(text = "Tentar novamente", onClick = onRetry, icon = Icons.Default.Refresh)
         }
     }
 }
 
 @Composable
-fun GradientOverlay(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxWidth().height(200.dp).background(
-            Brush.verticalGradient(
-                colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background),
-                startY = 0f, endY = Float.POSITIVE_INFINITY
-            )
-        )
+fun SeasonTab(season: Int, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val bgColor by animateColorAsState(
+        if (isSelected) Accent else Color.Transparent, animationSpec = tween(200), label = "seasonTab"
     )
-}
-
-@Composable
-fun IconCircleButton(
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tint: Color = Purple,
-    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant
-) {
-    IconButton(onClick = onClick, modifier = modifier.size(48.dp).clip(CircleShape).background(backgroundColor)) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
-    }
-}
-
-@Composable
-fun SeasonTab(
-    season: Int,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val bgColor by animateColorAsState(if (isSelected) Purple else Color.Transparent, label = "seasonTab")
-    val textColor by animateColorAsState(if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant, label = "seasonText")
-
+    val textColor by animateColorAsState(
+        if (isSelected) Color.White else TextSecondary, animationSpec = tween(200), label = "seasonText"
+    )
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(22.dp),
         color = bgColor,
         border = if (!isSelected) ButtonDefaults.outlinedButtonBorder(enabled = true) else null
     ) {
@@ -187,5 +189,21 @@ fun SeasonTab(
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+    }
+}
+
+@Composable
+fun IconCircleButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = TextPrimary,
+    backgroundColor: Color = SurfaceElevated
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(42.dp).clip(CircleShape).background(backgroundColor)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
     }
 }
