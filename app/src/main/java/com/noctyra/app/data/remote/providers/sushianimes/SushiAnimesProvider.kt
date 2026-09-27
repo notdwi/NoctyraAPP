@@ -135,7 +135,7 @@ class SushiAnimesProvider : AnimeProvider {
             } catch (_: Exception) {}
         }
         val term = parsed.name.replace("-", " ")
-        val doc = HttpClient.fetchDoc(SushiUrls.searchFallback(term), referer = "$baseUrl/")
+        val doc = HttpClient.fetchDoc(SushiUrls.search(term), referer = "$baseUrl/")
         val candidates = SushiParser.parseSearchResults(doc)
         if (candidates.isEmpty()) throw Exception("Anime '$term' não encontrado")
         if (parsed.isMovie) {

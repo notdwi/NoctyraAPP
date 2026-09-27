@@ -12,6 +12,5 @@ object SushiUrls {
     fun movieStream(slug: String) = "$BASE/filme/$slug"
     fun animeStream(slug: String, season: Int, episode: Int) =
         "$BASE/anime/$slug-$season-season-$episode-episode"
-    fun search(term: String) = "$BASE/?s=$term"
-    fun searchFallback(term: String) = "$BASE/search/$term"
+    fun search(term: String) = "$BASE/search/$term"
 }
