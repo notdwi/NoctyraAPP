@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SentimentDissatisfied
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,7 +83,7 @@ fun GenreChip(text: String, modifier: Modifier = Modifier) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            color = AccentLight,
+            color = PinkLight,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         )
     }
@@ -159,7 +160,12 @@ fun ErrorScreen(message: String, onRetry: (() -> Unit)? = null, modifier: Modifi
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("😕", style = MaterialTheme.typography.headlineLarge)
+        Icon(
+            imageVector = Icons.Default.SentimentDissatisfied,
+            contentDescription = null,
+            tint = TextMuted,
+            modifier = Modifier.size(56.dp)
+        )
         Spacer(Modifier.height(12.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
         if (onRetry != null) {

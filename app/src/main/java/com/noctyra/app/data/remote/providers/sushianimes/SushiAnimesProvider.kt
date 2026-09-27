@@ -17,21 +17,22 @@ class SushiAnimesProvider : AnimeProvider {
     override val baseUrl = SushiUrls.BASE
 
     override suspend fun search(query: String): List<Anime> {
-        // Slugify and try query directly
         val slug = SushiUtils.slugify(query)
         val term = slug.replace("-", " ")
 
-        // Try WordPress search endpoint — gets enriched HTML cards
         val doc = HttpClient.fetchDoc(SushiUrls.search(term), referer = "$baseUrl/")
         val results = SushiParser.parseSearchCards(doc)
 
-        // If we got results with posters, return them directly (no extra requests)
-        val withPosters = results.filter { it.posterUrl.isNotEmpty() }
+        // Sort by relevance before fetching posters
+        val sorted = sortByRelevance(results, slug, term)
+
+        // Return results with posters directly (fast path)
+        val withPosters = sorted.filter { it.posterUrl.isNotEmpty() }
         if (withPosters.isNotEmpty()) return withPosters
 
-        // Fallback: fetch poster for each result asynchronously (max 10)
+        // Fallback: fetch posters in parallel (max 10)
         return coroutineScope {
-            results.take(10).map { anime ->
+            sorted.take(10).map { anime ->
                 async {
                     if (anime.posterUrl.isNotEmpty()) return@async anime
                     val rawSlug = if (anime.isMovie) anime.slug.removeSuffix("-filme") else anime.slug
@@ -47,6 +48,33 @@ class SushiAnimesProvider : AnimeProvider {
         }
     }
 
+    /** Ranks results by how closely they match the query. Higher score = better match. */
+    private fun sortByRelevance(list: List<Anime>, slugQuery: String, termQuery: String): List<Anime> {
+        val queryWords = termQuery.lowercase().split(" ").filter { it.isNotEmpty() }
+        return list.sortedByDescending { anime ->
+            val slugName = SushiUtils.slugName(anime.slug).lowercase()
+            val titleLow = anime.title.lowercase()
+            var score = 0
+
+            // Exact slug match
+            if (slugName == slugQuery) score += 1000
+            // Title starts with query
+            if (titleLow.startsWith(termQuery.lowercase())) score += 500
+            // Slug starts with query slug
+            if (slugName.startsWith(slugQuery)) score += 400
+            // All query words present in title
+            if (queryWords.all { titleLow.contains(it) }) score += 300
+            // All query words present in slug
+            if (queryWords.all { slugName.contains(it) }) score += 200
+            // Partial: some words match
+            score += queryWords.count { titleLow.contains(it) } * 50
+            score += queryWords.count { slugName.contains(it) } * 30
+            // Prefer shorter, more specific titles (closer to the query length)
+            score -= (titleLow.length - termQuery.length).coerceAtLeast(0)
+
+            score
+        }
+    }
 
     override suspend fun getLatestReleases(): List<Anime> {
         val doc = HttpClient.fetchDoc(SushiUrls.EPISODES_PAGE, referer = "$baseUrl/")
