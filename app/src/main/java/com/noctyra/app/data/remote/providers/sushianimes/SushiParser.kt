@@ -84,7 +84,12 @@ internal object SushiParser {
             val isMovie = matchMovie != null
             if (!seen.add(foundSlug)) return@forEach
 
-            val title = link.text().trim().ifEmpty { SushiUtils.titleFromSlug(foundSlug) }
+            var title = link.text().trim()
+            if (title.isNullOrEmpty() || title.contains("FULLHD", true) || title.contains("HD", true) || title.contains("FHD", true)) {
+                title = link.selectFirst("img")?.attr("alt")?.trim()?.takeIf { it.isNotEmpty() && !it.contains("FULLHD", true) }
+                    ?: link.attr("title").trim().takeIf { it.isNotEmpty() && !it.contains("FULLHD", true) }
+                    ?: SushiUtils.titleFromSlug(foundSlug)
+            }
             val poster = link.selectFirst("img")?.let {
                 it.attr("data-src").ifEmpty { it.attr("src") }
             } ?: ""
