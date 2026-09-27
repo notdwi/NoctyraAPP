@@ -229,9 +229,16 @@ private fun VideoPlayer(stream: StreamResult, isFullscreen: Boolean) {
         AndroidView(
             factory = { ctx ->
                 android.webkit.WebView(ctx).apply {
+                    // Spoof a real Chrome desktop browser to bypass Cloudflare/anti-WebView blocks
+                    settings.userAgentString =
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.mediaPlaybackRequiresUserGesture = false
+                    settings.allowContentAccess = true
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     webViewClient = android.webkit.WebViewClient()
                     webChromeClient = android.webkit.WebChromeClient()
                     loadUrl(stream.streamUrl)
