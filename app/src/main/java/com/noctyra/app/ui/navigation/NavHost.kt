@@ -31,6 +31,7 @@ import com.noctyra.app.ui.screens.explore.ExploreScreen
 import com.noctyra.app.ui.screens.home.HomeScreen
 import com.noctyra.app.ui.screens.home.HomeViewModel
 import com.noctyra.app.ui.screens.mylist.MyListScreen
+import com.noctyra.app.ui.screens.party.PartyScreen
 import com.noctyra.app.ui.screens.player.PlayerScreen
 import com.noctyra.app.ui.screens.search.SearchScreen
 import com.noctyra.app.ui.screens.settings.ProfileScreen
@@ -56,6 +57,8 @@ fun NoctyraNavHost() {
     val openPlayer: (String, Int, Int) -> Unit = { s, season, ep -> navController.navigate(Routes.player(s, season, ep)) }
     val openSearch: (String) -> Unit = { navController.navigate(Routes.search(it)) }
     val openCategory: (Category) -> Unit = { navController.navigate(Routes.category(it.slug, it.name)) }
+
+    PartyNavigationEffect(navController)
 
     Box(Modifier.fillMaxSize().background(BackgroundDark)) {
         NavHost(
@@ -99,6 +102,7 @@ fun NoctyraNavHost() {
             }
             composable(Routes.PROFILE) {
                 ProfileScreen(
+                    onOpenParty = { navController.navigate(Routes.PARTY) },
                     onOpenDownloads = { navController.navigateTab(Routes.myList(2)) },
                     onOpenHistory = { navController.navigateTab(Routes.myList(1)) }
                 )
@@ -156,7 +160,15 @@ fun NoctyraNavHost() {
                         navController.navigate(Routes.player(slug, season, ep)) {
                             popUpTo(Routes.PLAYER) { inclusive = true }
                         }
-                    }
+                    },
+                    onOpenParty = { navController.navigate(Routes.PARTY) }
+                )
+            }
+            composable(Routes.PARTY) {
+                PartyScreen(
+                    onBack = { navController.popBackStack() },
+                    onPickAnime = { navController.navigateTab(Routes.HOME) },
+                    onOpenPlayer = { st -> navController.openPartyPlayer(st.slug, st.season, st.episode) }
                 )
             }
         }

@@ -27,6 +27,10 @@ object AppSettings {
         _autoplayNext.value = prefs.getBoolean("autoplay_next", true)
     }
 
+    var nick: String
+        get() = prefs.getString("party_nick", "").orEmpty()
+        set(value) { prefs.edit().putString("party_nick", value.trim().take(20)).apply() }
+
     fun setLiteMode(enabled: Boolean) {
         _liteMode.value = enabled
         prefs.edit().putBoolean("lite_mode", enabled).apply()

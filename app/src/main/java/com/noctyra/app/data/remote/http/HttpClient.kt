@@ -1,6 +1,7 @@
 package com.noctyra.app.data.remote.http
 
 import android.content.Context
+import com.noctyra.app.data.model.AppError
 import okhttp3.Cache
 import okhttp3.CipherSuite
 import okhttp3.ConnectionPool
@@ -61,9 +62,10 @@ object HttpClient {
             .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
         if (referer.isNotEmpty()) reqBuilder.header("Referer", referer)
         okHttp.newCall(reqBuilder.build()).execute().use { response ->
-            if (response.code in 300..399) throw Exception("Redirect: not found")
-            if (response.code == 404 || response.code == 410) throw Exception("Not found")
-            if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
+            if (response.code in 300..399 || response.code == 404 || response.code == 410) {
+                throw AppError("Conteúdo não encontrado")
+            }
+            if (!response.isSuccessful) throw AppError("O servidor está instável agora. Tente de novo em alguns minutos.")
             return Jsoup.parse(response.body?.string() ?: "", url)
         }
     }

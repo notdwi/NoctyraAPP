@@ -29,6 +29,7 @@ import androidx.media3.exoplayer.offline.DownloadService
 import com.noctyra.app.MainActivity
 import com.noctyra.app.R
 import com.noctyra.app.data.local.progressKey
+import com.noctyra.app.data.model.AppError
 import com.noctyra.app.data.model.cleanTitle
 import com.noctyra.app.data.remote.http.HttpClient
 import com.noctyra.app.data.remote.providers.sushianimes.SushiUrls
@@ -160,7 +161,7 @@ object DownloadCenter {
     ) {
         val stream = AnimeRepository.getStream(slug, season, episode, force = true)
         if (stream.streamType == "embed") {
-            throw Exception("Este episódio só tem player externo e não pode ser baixado")
+            throw AppError("Este episódio só tem player externo e não pode ser baixado")
         }
         val meta = DownloadMeta(
             slug = slug, title = cleanTitle(title), posterUrl = posterUrl, season = season, episode = episode,

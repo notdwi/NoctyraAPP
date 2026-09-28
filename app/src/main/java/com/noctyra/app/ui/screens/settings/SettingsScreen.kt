@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SkipNext
@@ -39,7 +40,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalCoilApi::class)
 @Composable
-fun ProfileScreen(onOpenDownloads: () -> Unit, onOpenHistory: () -> Unit) {
+fun ProfileScreen(onOpenParty: () -> Unit, onOpenDownloads: () -> Unit, onOpenHistory: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val favorites by LibraryStore.favorites.collectAsStateWithLifecycle()
@@ -79,6 +80,10 @@ fun ProfileScreen(onOpenDownloads: () -> Unit, onOpenHistory: () -> Unit) {
             StatCard("${favorites.size}", "Na lista", Modifier.weight(1f))
             StatCard("${history.size}", "Episódios vistos", Modifier.weight(1f))
             StatCard("${downloads.values.count { it.status == DownloadStatus.COMPLETED }}", "Baixados", Modifier.weight(1f))
+        }
+
+        SettingsGroup("Juntos") {
+            SettingsRow(Icons.Default.Groups, "Party", "Crie uma sala e assista com amigos, com chat", onClick = onOpenParty)
         }
 
         SettingsGroup("Biblioteca") {

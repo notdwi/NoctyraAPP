@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.noctyra.app.data.model.Anime
 import com.noctyra.app.data.model.UiState
+import com.noctyra.app.data.model.userMessage
 import com.noctyra.app.data.repository.AnimeRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -41,7 +42,7 @@ class SearchViewModel : ViewModel() {
             _results.value = try {
                 UiState.Success(AnimeRepository.search(newQuery.trim()))
             } catch (e: Exception) {
-                UiState.Error(e.message ?: "Falha na busca")
+                UiState.Error(e.userMessage("Falha na busca"))
             }
         }
     }

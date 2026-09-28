@@ -6,6 +6,7 @@ import androidx.media3.common.MediaItem
 import com.noctyra.app.data.model.AnimeDetail
 import com.noctyra.app.data.model.StreamResult
 import com.noctyra.app.data.model.UiState
+import com.noctyra.app.data.model.userMessage
 import com.noctyra.app.data.repository.AnimeRepository
 import com.noctyra.app.download.DownloadCenter
 import com.noctyra.app.download.DownloadMeta
@@ -53,7 +54,7 @@ class PlayerViewModel : ViewModel() {
                 val stream = AnimeRepository.getStream(slug, season, episode, force)
                 _source.value = UiState.Success(PlaybackSource.Online(stream))
             } catch (e: Exception) {
-                _source.value = UiState.Error(e.message ?: "Falha ao carregar o vídeo")
+                _source.value = UiState.Error(e.userMessage("Falha ao carregar o vídeo"))
             }
         }
     }

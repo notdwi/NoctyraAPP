@@ -6,6 +6,7 @@ import com.noctyra.app.data.local.LibraryStore
 import com.noctyra.app.data.model.AnimeDetail
 import com.noctyra.app.data.model.Episode
 import com.noctyra.app.data.model.UiState
+import com.noctyra.app.data.model.userMessage
 import com.noctyra.app.data.repository.AnimeRepository
 import com.noctyra.app.download.DownloadCenter
 import kotlinx.coroutines.channels.Channel
@@ -36,7 +37,7 @@ class DetailViewModel : ViewModel() {
             try {
                 onLoaded(slug, AnimeRepository.getAnimeDetail(slug, force))
             } catch (e: Exception) {
-                _state.value = UiState.Error(e.message ?: "Falha ao carregar o anime")
+                _state.value = UiState.Error(e.userMessage("Falha ao carregar o anime"))
             }
         }
     }
@@ -66,7 +67,7 @@ class DetailViewModel : ViewModel() {
                 )
                 _messages.send("Episódio ${episode.number} adicionado aos downloads")
             } catch (e: Exception) {
-                _messages.send(e.message ?: "Não foi possível baixar este episódio")
+                _messages.send(e.userMessage("Não foi possível baixar este episódio"))
             }
         }
     }

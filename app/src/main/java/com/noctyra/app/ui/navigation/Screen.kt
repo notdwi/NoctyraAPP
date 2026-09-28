@@ -11,6 +11,7 @@ object Routes {
     const val DETAIL = "detail/{slug}"
     const val PLAYER = "player/{slug}/{season}/{episode}"
     const val CATEGORY = "category/{slug}?name={name}"
+    const val PARTY = "party"
 
     fun myList(tab: Int = 0) = "mylist?tab=$tab"
     fun search(query: String = "") = "search?q=${Uri.encode(query)}"

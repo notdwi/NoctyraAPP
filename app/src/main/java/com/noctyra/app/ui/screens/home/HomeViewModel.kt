@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.noctyra.app.data.model.Anime
 import com.noctyra.app.data.model.AnimeDetail
 import com.noctyra.app.data.model.HomeFeed
+import com.noctyra.app.data.model.userMessage
 import com.noctyra.app.data.repository.AnimeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,7 +52,7 @@ class HomeViewModel : ViewModel() {
                     it.copy(
                         loading = false,
                         refreshing = false,
-                        error = if (it.feed == null) (e.message ?: "Sem conexão") else null
+                        error = if (it.feed == null) e.userMessage("Não foi possível carregar a página inicial") else null
                     )
                 }
             }

@@ -3,6 +3,8 @@ package com.noctyra.app.data.repository
 import android.content.Context
 import com.noctyra.app.data.model.Anime
 import com.noctyra.app.data.model.AnimeDetail
+import com.noctyra.app.data.model.AppError
+import com.noctyra.app.data.model.toAppError
 import com.noctyra.app.data.model.HomeFeed
 import com.noctyra.app.data.model.StreamResult
 import com.noctyra.app.data.remote.http.HttpClient
@@ -66,8 +68,8 @@ object AnimeRepository {
         feed == null || System.currentTimeMillis() - feed.fetchedAt > HOME_TTL
 
     suspend fun refreshHome(): HomeFeed = withContext(Dispatchers.IO) {
-        val feed = provider.getHome()
-        if (feed.isEmpty) throw Exception("Não foi possível carregar a página inicial")
+        val feed = guarded { provider.getHome() }
+        if (feed.isEmpty) throw AppError("Não foi possível carregar a página inicial")
         homeMemory = feed
         writeDisk("home.json", HomeFeed.serializer(), feed)
         feed
@@ -80,7 +82,7 @@ object AnimeRepository {
         val deferred = inflightDetails.getOrPut(slug) {
             scope.async {
                 try {
-                    val detail = provider.getAnimeDetail(slug)
+                    val detail = guarded { provider.getAnimeDetail(slug) }
                     detailCache.put(slug, detail)
                     writeDisk(detailFile(slug), AnimeDetail.serializer(), detail)
                     detail
@@ -98,7 +100,7 @@ object AnimeRepository {
         val key = query.trim().lowercase()
         searchCache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
-            provider.search(query).also { searchCache.put(key, it) }
+            guarded { provider.search(query) }.also { searchCache.put(key, it) }
         }
     }
 
@@ -106,7 +108,7 @@ object AnimeRepository {
         val key = "category:$slug:$page"
         searchCache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
-            provider.getCategory(slug, page).also { searchCache.put(key, it) }
+            guarded { provider.getCategory(slug, page) }.also { searchCache.put(key, it) }
         }
     }
 
@@ -114,7 +116,7 @@ object AnimeRepository {
         val key = "$slug/$season/$episode"
         if (!force) streamCache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
-            provider.getStream(slug, season, episode).also { streamCache.put(key, it) }
+            guarded { provider.getStream(slug, season, episode) }.also { streamCache.put(key, it) }
         }
     }
 
@@ -127,6 +129,9 @@ object AnimeRepository {
         HttpClient.clearCache()
         dataDir?.listFiles()?.forEach { it.delete() }
     }
+
+    private inline fun <T> guarded(block: () -> T): T =
+        try { block() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { throw e.toAppError() }
 
     private fun detailFile(slug: String) = "detail_${slug.hashCode().toUInt()}.json"
 

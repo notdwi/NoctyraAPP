@@ -1,6 +1,7 @@
 package com.noctyra.app.data.remote.providers.sushianimes
 
 import com.noctyra.app.data.model.Anime
+import com.noctyra.app.data.model.AppError
 import com.noctyra.app.data.model.AnimeDetail
 import com.noctyra.app.data.model.HomeFeed
 import com.noctyra.app.data.model.StreamResult
@@ -90,7 +91,7 @@ class SushiAnimesProvider : AnimeProvider {
             HttpClient.fetchDoc(pageUrl, referer = "$baseUrl/")
         }
         val embedRefs = SushiEmbed.parseEmbedRefs(doc)
-        if (embedRefs.isEmpty()) throw Exception("Nenhum player encontrado para o episódio $episode")
+        if (embedRefs.isEmpty()) throw AppError("Nenhum player disponível para o episódio $episode")
 
         var fallback: StreamResult? = null
         for (ref in embedRefs) {
@@ -98,7 +99,7 @@ class SushiAnimesProvider : AnimeProvider {
             if (result.host == "Direct") return result
             if (fallback == null) fallback = result
         }
-        return fallback ?: throw Exception("Nenhuma fonte encontrada para o episódio $episode")
+        return fallback ?: throw AppError("Nenhuma fonte de vídeo disponível para o episódio $episode")
     }
 
     private fun resolveDetail(parsed: SushiParsedSlug): Pair<String, Document> {
@@ -111,7 +112,7 @@ class SushiAnimesProvider : AnimeProvider {
         }
         val term = parsed.name.replace("-", " ")
         val candidates = SushiParser.parseSearchResults(HttpClient.fetchDoc(SushiUrls.search(term), referer = "$baseUrl/"))
-        if (candidates.isEmpty()) throw Exception("Anime '$term' não encontrado")
+        if (candidates.isEmpty()) throw AppError("Anime não encontrado")
 
         val chosen = (if (parsed.isMovie) candidates.firstOrNull { it.second } else null)
             ?: candidates.firstOrNull { SushiUtils.slugName(it.first) == parsed.name }

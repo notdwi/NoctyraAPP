@@ -23,6 +23,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noctyra.app.data.local.LibraryStore
 import com.noctyra.app.data.model.Anime
+import com.noctyra.app.data.model.userMessage
 import com.noctyra.app.data.repository.AnimeRepository
 import com.noctyra.app.ui.components.*
 import com.noctyra.app.ui.theme.*
@@ -72,7 +73,7 @@ class CategoryViewModel : ViewModel() {
                 nextPage++
                 _ui.update { it.copy(items = it.items + fresh, loading = false, endReached = fresh.isEmpty()) }
             } catch (e: Exception) {
-                _ui.update { it.copy(loading = false, error = e.message ?: "Falha ao carregar a categoria") }
+                _ui.update { it.copy(loading = false, error = e.userMessage("Falha ao carregar a categoria")) }
             }
         }
     }
