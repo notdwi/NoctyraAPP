@@ -17,7 +17,8 @@ internal class PartyGuest(private val nick: String, private val events: PartyEve
     private val welcome = CompletableDeferred<Msg?>()
 
     @Volatile private var clockOffset = 0L
-    private var bestRtt = Long.MAX_VALUE
+    @Volatile private var clockReady = false
+    private var bestRtt = 10_000L
     private var state: PartyState? = null
     private var ignoreUntilRev = -1L
     private var ignoreDeadline = 0L
@@ -53,26 +54,22 @@ internal class PartyGuest(private val nick: String, private val events: PartyEve
         }
     }
 
-    override fun hostNow(): Long = now() + clockOffset
+    override fun hostNow(): Long? = if (clockReady) now() + clockOffset else null
 
-    override fun openedEpisode(state: PartyState) {
-        scope.launch {
-            if (this@PartyGuest.state?.key == state.key) return@launch
-            optimistic(state.copy(positionMs = 0L, anchorAt = hostNow(), playing = true, hold = true, waitingFor = emptyList()))
-            conn?.send(Msg(MsgType.EPISODE, state = state))
-        }
-    }
+    private fun hostClock(): Long = now() + clockOffset
+
+    override fun openedEpisode(state: PartyState) = Unit
 
     override fun userPlayPause(playing: Boolean, positionMs: Long) {
         scope.launch {
-            state?.let { optimistic(it.copy(playing = playing, positionMs = positionMs, anchorAt = hostNow())) }
+            state?.let { optimistic(it.copy(playing = playing, positionMs = positionMs, anchorAt = hostClock())) }
             conn?.send(Msg(MsgType.PLAY, playing = playing, pos = positionMs))
         }
     }
 
     override fun userSeek(positionMs: Long) {
         scope.launch {
-            state?.let { optimistic(it.copy(positionMs = positionMs, anchorAt = hostNow())) }
+            state?.let { optimistic(it.copy(positionMs = positionMs, anchorAt = hostClock())) }
             conn?.send(Msg(MsgType.SEEK, pos = positionMs))
         }
     }
@@ -120,17 +117,15 @@ internal class PartyGuest(private val nick: String, private val events: PartyEve
         val previousKey = state?.key
         state = incoming
         events.updateSession { it.copy(state = incoming) }
-        if (previousKey != incoming.key) events.navigate(incoming)
+        if (previousKey != null && previousKey != incoming.key) events.navigate(incoming)
     }
 
     /** Aplica o comando local na hora e ignora estados antigos do host até ele confirmar. */
     private fun optimistic(next: PartyState) {
-        val previousKey = state?.key
         ignoreUntilRev = state?.rev ?: -1L
         ignoreDeadline = now() + 1_500
         state = next
         events.updateSession { it.copy(state = next) }
-        if (previousKey != null && previousKey != next.key) events.navigate(next)
     }
 
     private fun onPong(msg: Msg) {
@@ -142,7 +137,8 @@ internal class PartyGuest(private val nick: String, private val events: PartyEve
         val offset = hostAt + rtt / 2 - t
         if (rtt <= bestRtt + 30) {
             bestRtt = minOf(bestRtt, rtt)
-            clockOffset = if (clockOffset == 0L) offset else (clockOffset * 3 + offset) / 4
+            clockOffset = if (!clockReady) offset else (clockOffset * 3 + offset) / 4
+            clockReady = true
         }
     }
 

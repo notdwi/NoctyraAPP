@@ -63,28 +63,31 @@ fun PartyChatPanel(messages: List<ChatMessage>, onSend: (String) -> Unit, modifi
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(shape)
-                    .background(SurfaceCard)
-                    .border(1.dp, CardBorder, shape)
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (draft.isEmpty()) Text("Mandar mensagem…", color = TextMuted, fontSize = 15.sp)
-                BasicTextField(
-                    value = draft,
-                    onValueChange = { if (it.length <= 300) draft = it },
-                    textStyle = MaterialTheme.typography.bodyLarge,
-                    cursorBrush = SolidColor(Pink),
-                    maxLines = 3,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { send() }),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            BasicTextField(
+                value = draft,
+                onValueChange = { if (it.length <= 300) draft = it },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                cursorBrush = SolidColor(Pink),
+                maxLines = 3,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { send() }),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(shape)
+                            .background(SurfaceCard)
+                            .border(1.dp, CardBorder, shape)
+                            .padding(horizontal = 18.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (draft.isEmpty()) Text("Mandar mensagem…", color = TextMuted, fontSize = 15.sp)
+                        inner()
+                    }
+                }
+            )
             Spacer(Modifier.width(8.dp))
             Box(
                 Modifier

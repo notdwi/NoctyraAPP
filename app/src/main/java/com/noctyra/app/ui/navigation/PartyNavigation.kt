@@ -24,7 +24,11 @@ fun NavHostController.openPartyPlayer(slug: String, season: Int, episode: Int) {
 fun PartyNavigationEffect(navController: NavHostController) {
     val context = LocalContext.current
     LaunchedEffect(navController) {
-        Party.navigate.collect { st -> navController.openPartyPlayer(st.slug, st.season, st.episode) }
+        Party.navigate.collect { st ->
+            if (navController.currentDestination?.route == Routes.PLAYER) {
+                navController.openPartyPlayer(st.slug, st.season, st.episode)
+            }
+        }
     }
     LaunchedEffect(Unit) {
         Party.notice.collect { msg ->

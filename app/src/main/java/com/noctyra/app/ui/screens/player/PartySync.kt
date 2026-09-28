@@ -37,6 +37,7 @@ fun PartySyncEffect(player: ExoPlayer, key: String) {
         while (true) {
             val t = SystemClock.elapsedRealtime()
             val ready = player.playbackState == Player.STATE_READY
+            val canSeek = ready || player.playbackState == Player.STATE_ENDED
             if (ready) {
                 reportedReady = true
                 notReadySince = 0L
@@ -52,13 +53,14 @@ fun PartySyncEffect(player: ExoPlayer, key: String) {
                 if (player.playWhenReady != shouldPlay) player.playWhenReady = shouldPlay
 
                 var wanted = 1f
-                if (ready) {
-                    val target = Party.targetPosition(st)
+                val duration = player.duration
+                val target = Party.targetPosition(st)?.let { if (duration > 0) it.coerceAtMost(duration - 500) else it }
+                if (canSeek && target != null) {
                     val diff = target - player.currentPosition
                     val hardLimit = if (shouldPlay) HARD_SEEK_PLAYING_MS else HARD_SEEK_PAUSED_MS
                     when {
                         abs(diff) > hardLimit -> player.seekTo(target)
-                        shouldPlay && abs(diff) > SOFT_DRIFT_MS -> wanted = if (diff > 0) 1.05f else 0.95f
+                        ready && shouldPlay && abs(diff) > SOFT_DRIFT_MS -> wanted = if (diff > 0) 1.05f else 0.95f
                     }
                 }
                 if (wanted != speed) {

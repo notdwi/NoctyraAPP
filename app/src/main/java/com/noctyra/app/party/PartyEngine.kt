@@ -14,7 +14,8 @@ internal interface PartyEvents {
 }
 
 internal interface PartyEngine {
-    fun hostNow(): Long
+    /** Relógio do host, ou null enquanto a diferença de relógio ainda não foi medida. */
+    fun hostNow(): Long?
     fun openedEpisode(state: PartyState)
     fun userPlayPause(playing: Boolean, positionMs: Long)
     fun userSeek(positionMs: Long)

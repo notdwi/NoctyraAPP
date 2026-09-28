@@ -139,12 +139,14 @@ fun VideoPlayer(
             PlayerView(ctx).apply {
                 useController = true
                 keepScreenOn = true
-                setShowPreviousButton(true)
-                setShowNextButton(true)
                 setFullscreenButtonClickListener { onFullscreenToggle() }
             }
         },
-        update = { if (it.player !== controls) it.player = controls },
+        update = {
+            it.setShowPreviousButton(hasPrevious)
+            it.setShowNextButton(hasNext)
+            if (it.player !== controls) it.player = controls
+        },
         onRelease = { it.player = null },
         modifier = Modifier.fillMaxSize()
     )

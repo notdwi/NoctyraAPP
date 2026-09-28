@@ -63,36 +63,39 @@ fun PartyTextField(
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(16.dp)
-    Box(
-        modifier
-            .fillMaxWidth()
-            .height(54.dp)
-            .clip(shape)
-            .background(SurfaceElevated)
-            .border(1.dp, CardBorder, shape)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        val style = TextStyle(
-            color = TextPrimary,
-            fontSize = if (monospace) 20.sp else 16.sp,
-            fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
-            fontWeight = if (monospace) FontWeight.Bold else FontWeight.Normal,
-            letterSpacing = if (monospace) 2.sp else 0.sp
-        )
-        if (value.isEmpty()) Text(placeholder, style = style.copy(color = TextMuted, fontWeight = FontWeight.Normal))
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            textStyle = style,
-            cursorBrush = SolidColor(Pink),
-            keyboardOptions = KeyboardOptions(
-                capitalization = if (monospace) KeyboardCapitalization.Characters else KeyboardCapitalization.Words
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
+    val style = TextStyle(
+        color = TextPrimary,
+        fontSize = if (monospace) 20.sp else 16.sp,
+        fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
+        fontWeight = if (monospace) FontWeight.Bold else FontWeight.Normal,
+        letterSpacing = if (monospace) 2.sp else 0.sp
+    )
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = style,
+        cursorBrush = SolidColor(Pink),
+        keyboardOptions = KeyboardOptions(
+            capitalization = if (monospace) KeyboardCapitalization.Characters else KeyboardCapitalization.Words
+        ),
+        modifier = modifier.fillMaxWidth(),
+        decorationBox = { inner ->
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .clip(shape)
+                    .background(SurfaceElevated)
+                    .border(1.dp, CardBorder, shape)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isEmpty()) Text(placeholder, style = style.copy(color = TextMuted, fontWeight = FontWeight.Normal))
+                inner()
+            }
+        }
+    )
 }
 
 @Composable

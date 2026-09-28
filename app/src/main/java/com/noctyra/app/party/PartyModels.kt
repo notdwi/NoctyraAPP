@@ -55,7 +55,6 @@ object MsgType {
     const val STATUS = "status"
     const val PLAY = "play"
     const val SEEK = "seek"
-    const val EPISODE = "episode"
     const val BYE = "bye"
 }
 

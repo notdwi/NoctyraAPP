@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +38,8 @@ import kotlinx.coroutines.launch
 fun PartyScreen(onBack: () -> Unit, onPickAnime: () -> Unit, onOpenPlayer: (PartyState) -> Unit) {
     val session by Party.session.collectAsStateWithLifecycle()
     var nick by remember { mutableStateOf(AppSettings.nick) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Column(
         Modifier
@@ -57,20 +60,31 @@ fun PartyScreen(onBack: () -> Unit, onPickAnime: () -> Unit, onOpenPlayer: (Part
         Spacer(Modifier.height(12.dp))
 
         val current = session
-        if (current == null) {
-            Lobby(nick = nick, onNickChange = { nick = it.take(20); AppSettings.nick = nick })
-        } else {
-            InRoom(current, onPickAnime, onOpenPlayer)
+        when {
+            current == null -> Lobby(
+                nick = nick,
+                error = error,
+                onNickChange = { nick = it.take(20); AppSettings.nick = nick },
+                onCreate = { error = Party.host(nick) },
+                onJoin = { code -> error = null; scope.launch { error = Party.join(code, nick) } },
+                onClearError = { error = null }
+            )
+            !current.connected -> Connecting()
+            else -> InRoom(current, onPickAnime, onOpenPlayer)
         }
     }
 }
 
 @Composable
-private fun Lobby(nick: String, onNickChange: (String) -> Unit) {
-    val scope = rememberCoroutineScope()
-    var code by remember { mutableStateOf("") }
-    var joining by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+private fun Lobby(
+    nick: String,
+    error: String?,
+    onNickChange: (String) -> Unit,
+    onCreate: () -> Unit,
+    onJoin: (String) -> Unit,
+    onClearError: () -> Unit
+) {
+    var code by rememberSaveable { mutableStateOf("") }
 
     PartyCard("Seu nick", "É assim que seus amigos vão te ver no chat") {
         PartyTextField(nick, onNickChange, placeholder = "Ex.: Gojo")
@@ -79,33 +93,21 @@ private fun Lobby(nick: String, onNickChange: (String) -> Unit) {
     PartyCard("Criar sala", "Você escolhe o anime e controla a sessão junto com a galera") {
         PinkButton(
             "Criar sala",
-            onClick = { error = Party.host(nick) },
+            onClick = onCreate,
             icon = Icons.Default.AddCircle,
             modifier = Modifier.fillMaxWidth()
         )
     }
 
     PartyCard("Entrar numa sala", "Digite o código que seu amigo mandou") {
-        PartyTextField(code, { code = it.uppercase().take(21); error = null }, placeholder = "NX-XXX-XXXX", monospace = true)
+        PartyTextField(code, { code = it.uppercase().take(21); onClearError() }, placeholder = "NX-XXX-XXXX", monospace = true)
         Spacer(Modifier.height(12.dp))
-        if (joining) {
-            Box(Modifier.fillMaxWidth().height(50.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Pink, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
-            }
-        } else {
-            GhostButton(
-                "Entrar",
-                onClick = {
-                    joining = true
-                    scope.launch {
-                        error = Party.join(code, nick)
-                        joining = false
-                    }
-                },
-                icon = Icons.AutoMirrored.Filled.Login,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        GhostButton(
+            "Entrar",
+            onClick = { if (code.isNotBlank()) onJoin(code) },
+            icon = Icons.AutoMirrored.Filled.Login,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 
     error?.let {
@@ -125,7 +127,18 @@ private fun Lobby(nick: String, onNickChange: (String) -> Unit) {
     PartyCard("Como funciona") {
         HowToStep(1, "Na mesma casa: fiquem no mesmo Wi‑Fi e use o código \"Mesma rede Wi‑Fi\".")
         HowToStep(2, "Longe: instalem o ZeroTier, entrem na mesma rede e use o código \"ZeroTier / VPN\".")
-        HowToStep(3, "Play, pause, avanço e troca de episódio valem para todos. Se alguém travar, a sala espera.")
+        HowToStep(3, "Só o host escolhe o anime. Play, pause e avanço valem para todos, e se alguém travar a sala espera.")
+    }
+}
+
+@Composable
+private fun Connecting() {
+    PartyCard("Conectando à sala…", "Isso leva só alguns segundos") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(color = Pink, strokeWidth = 3.dp, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = Party::leave) { Text("Cancelar", color = TextSecondary) }
+        }
     }
 }
 
@@ -157,11 +170,13 @@ private fun InRoom(session: PartySession, onPickAnime: () -> Unit, onOpenPlayer:
     PartyCard("Assistindo agora") {
         if (state == null) {
             Text(
-                if (session.isHost) "Escolha um anime e todos vão junto com você." else "Esperando alguém escolher o anime…",
+                if (session.isHost) "Escolha um anime e todos vão junto com você." else "Esperando o host escolher o anime…",
                 style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(Modifier.height(12.dp))
-            PinkButton("Escolher anime", onPickAnime, icon = Icons.Default.Search, modifier = Modifier.fillMaxWidth())
+            if (session.isHost) {
+                Spacer(Modifier.height(12.dp))
+                PinkButton("Escolher anime", onPickAnime, icon = Icons.Default.Search, modifier = Modifier.fillMaxWidth())
+            }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 NetImage(state.poster, Modifier.width(56.dp).aspectRatio(0.72f).clip(RoundedCornerShape(10.dp)))
@@ -177,9 +192,16 @@ private fun InRoom(session: PartySession, onPickAnime: () -> Unit, onOpenPlayer:
                 }
             }
             Spacer(Modifier.height(12.dp))
-            PinkButton("Abrir player", { onOpenPlayer(state) }, icon = Icons.Default.PlayArrow, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            GhostButton("Trocar anime", onPickAnime, icon = Icons.Default.Search, modifier = Modifier.fillMaxWidth(), height = 44.dp)
+            PinkButton(
+                if (session.isHost) "Abrir player" else "Assistir junto",
+                { onOpenPlayer(state) },
+                icon = Icons.Default.PlayArrow,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (session.isHost) {
+                Spacer(Modifier.height(8.dp))
+                GhostButton("Trocar anime", onPickAnime, icon = Icons.Default.Search, modifier = Modifier.fillMaxWidth(), height = 44.dp)
+            }
         }
     }
 

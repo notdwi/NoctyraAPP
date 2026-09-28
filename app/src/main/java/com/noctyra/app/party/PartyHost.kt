@@ -10,25 +10,30 @@ import java.net.ServerSocket
 import java.net.Socket
 
 /**
- * O host é a fonte da verdade: guarda o estado de reprodução, repassa comandos dos convidados
- * e segura todo mundo (hold) enquanto alguém ainda está carregando o episódio.
+ * O host é a fonte da verdade: só ele escolhe o episódio, repassa play/pause/seek de todos
+ * e segura a sala (hold) enquanto alguém que já estava assistindo carrega ou trava.
+ * Quem entra no meio não segura ninguém: só pula para o ponto certo ao carregar.
  */
 internal class PartyHost(private val nick: String, private val events: PartyEvents) : PartyEngine {
-    private class Peer(val id: String, val conn: PartyConnection) {
-        var nick = ""
-        var joined = false
+    private class Viewer(val id: String, var nick: String) {
         var key: String? = null
         var ready = false
+        var expected = false
+        var synced = false
+        var leftAt = 0L
+    }
+
+    private class Peer(val conn: PartyConnection, val viewer: Viewer) {
+        var joined = false
     }
 
     private val scope = confinedScope("party-host")
     private var server: ServerSocket? = null
     private val peers = LinkedHashMap<String, Peer>()
+    private val self = Viewer(HOST_ID, nick)
     private var nextId = 1
 
     private var state: PartyState? = null
-    private var hostKey: String? = null
-    private var hostReady = false
     private var hostPos = 0L
     private var hostPosAt = 0L
     private var holdSince = 0L
@@ -54,6 +59,7 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
             while (isActive) {
                 delay(1000)
                 ticks++
+                expireLeftViewers()
                 checkHoldTimeout()
                 if (ticks % 3 == 0) heartbeat()
             }
@@ -62,21 +68,17 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
         return true
     }
 
-    override fun hostNow(): Long = now()
+    override fun hostNow(): Long? = now()
 
-    override fun openedEpisode(state: PartyState) { scope.launch { applyEpisode(state, remote = false) } }
+    override fun openedEpisode(state: PartyState) { scope.launch { applyEpisode(state) } }
     override fun userPlayPause(playing: Boolean, positionMs: Long) { scope.launch { applyPlay(playing, positionMs) } }
     override fun userSeek(positionMs: Long) { scope.launch { applySeek(positionMs) } }
     override fun sendChat(text: String) { scope.launch { broadcastChat(HOST_ID, nick, text) } }
 
     override fun reportPlayer(key: String?, ready: Boolean, positionMs: Long) {
         scope.launch {
-            val changed = key != hostKey || ready != hostReady
-            hostKey = key
-            hostReady = ready
             if (key != null) { hostPos = positionMs; hostPosAt = now() }
-            if (ready && key == state?.key) skipped.remove(HOST_ID)
-            if (changed) recomputeHold()
+            updateStatus(self, key, ready)
         }
     }
 
@@ -88,6 +90,8 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
             scope.cancel()
         }
     }
+
+    private fun viewers(): List<Viewer> = listOf(self) + peers.values.filter { it.joined }.map { it.viewer }
 
     private fun onSocket(socket: Socket) {
         socket.tcpNoDelay = true
@@ -104,32 +108,25 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
             scope.launch { delay(300); conn.close() }
             return
         }
-        peers[id] = Peer(id, conn)
+        peers[id] = Peer(conn, Viewer(id, ""))
     }
 
     private fun handle(id: String, msg: Msg) {
         val peer = peers[id] ?: return
         when (msg.t) {
             MsgType.HELLO -> {
-                peer.nick = uniqueNick(sanitizeNick(msg.nick))
+                peer.viewer.nick = uniqueNick(sanitizeNick(msg.nick))
                 peer.joined = true
                 peer.conn.send(Msg(MsgType.WELCOME, id = id, nick = nick))
                 publishMembers()
                 state?.let { peer.conn.send(Msg(MsgType.STATE, state = it)) }
-                broadcastChat(SYSTEM_ID, "", "${peer.nick} entrou na sala")
-                recomputeHold()
+                broadcastChat(SYSTEM_ID, "", "${peer.viewer.nick} entrou na sala")
             }
             MsgType.PING -> peer.conn.send(Msg(MsgType.PONG, ts = msg.ts, ts2 = now()))
-            MsgType.STATUS -> {
-                peer.key = msg.key
-                peer.ready = msg.ready == true
-                if (peer.ready && peer.key == state?.key) skipped.remove(id)
-                recomputeHold()
-            }
+            MsgType.STATUS -> if (peer.joined) updateStatus(peer.viewer, msg.key, msg.ready == true)
             MsgType.PLAY -> if (peer.joined) applyPlay(msg.playing == true, msg.pos ?: 0L)
             MsgType.SEEK -> if (peer.joined) applySeek(msg.pos ?: 0L)
-            MsgType.EPISODE -> if (peer.joined) msg.state?.let { applyEpisode(it, remote = true) }
-            MsgType.CHAT -> if (peer.joined) broadcastChat(id, peer.nick, sanitizeChat(msg.text))
+            MsgType.CHAT -> if (peer.joined) broadcastChat(id, peer.viewer.nick, sanitizeChat(msg.text))
             MsgType.BYE -> peer.conn.close()
         }
     }
@@ -138,20 +135,48 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
         val peer = peers.remove(id) ?: return
         if (!peer.joined) return
         publishMembers()
-        broadcastChat(SYSTEM_ID, "", "${peer.nick} saiu da sala")
+        broadcastChat(SYSTEM_ID, "", "${peer.viewer.nick} saiu da sala")
         recomputeHold()
     }
 
-    private fun applyEpisode(incoming: PartyState, remote: Boolean) {
+    private fun updateStatus(viewer: Viewer, key: String?, ready: Boolean) {
+        val st = state
+        val changed = key != viewer.key || ready != viewer.ready
+        viewer.key = key
+        viewer.ready = ready
+        viewer.leftAt = if (key == null) now() else 0L
+        when {
+            key == null -> viewer.synced = false
+            st != null && key == st.key && ready -> { viewer.expected = false; viewer.synced = true; skipped.remove(viewer.id) }
+            st != null && key != st.key -> viewer.synced = false
+        }
+        if (changed) recomputeHold()
+    }
+
+    private fun applyEpisode(incoming: PartyState) {
         val current = state
-        if (current?.key == incoming.key) return
+        if (current?.key == incoming.key) {
+            val richer = (incoming.poster.isNotEmpty() && incoming.poster != current.poster) ||
+                (incoming.title.isNotEmpty() && incoming.title != current.title)
+            if (richer) {
+                state = current.copy(
+                    title = incoming.title.ifEmpty { current.title },
+                    poster = incoming.poster.ifEmpty { current.poster }
+                )
+                broadcastState()
+            }
+            return
+        }
         skipped.clear()
         lastJump = now()
+        viewers().forEach { v ->
+            v.expected = v.key != null || v === self
+            v.synced = false
+        }
         state = incoming.copy(
             positionMs = 0L, anchorAt = now(), playing = true, hold = false,
             waitingFor = emptyList(), rev = (current?.rev ?: 0L) + 1
         )
-        if (remote) state?.let(events::navigate)
         broadcastChat(SYSTEM_ID, "", "▶ ${incoming.title.ifEmpty { "Episódio" }} • T${incoming.season} EP ${incoming.episode}")
         recomputeHold(forceBroadcast = true)
     }
@@ -170,16 +195,16 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
         broadcastState()
     }
 
-    private fun waitingMembers(st: PartyState): List<Pair<String, String>> = buildList {
-        if (!(hostKey == st.key && hostReady) && HOST_ID !in skipped) add(HOST_ID to nick)
-        peers.values.filter { it.joined }.forEach {
-            if (!(it.key == st.key && it.ready) && it.id !in skipped) add(it.id to it.nick)
-        }
+    private fun isWaiting(v: Viewer, st: PartyState): Boolean {
+        if (v.id in skipped) return false
+        val loadingNew = v.expected && (v.key != st.key || !v.ready)
+        val stalled = v.synced && v.key == st.key && !v.ready
+        return loadingNew || stalled
     }
 
     private fun recomputeHold(forceBroadcast: Boolean = false) {
         val st = state ?: return
-        val waiting = waitingMembers(st).map { it.second }
+        val waiting = viewers().filter { isWaiting(it, st) }.map { it.nick }
         val t = now()
         val next = when {
             waiting.isNotEmpty() && !st.hold -> {
@@ -197,10 +222,18 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
         if (next !== st || forceBroadcast) broadcastState()
     }
 
+    private fun expireLeftViewers() {
+        val t = now()
+        val left = viewers().filter { it.expected && it.key == null && it.leftAt > 0 && t - it.leftAt > LEFT_GRACE_MS }
+        if (left.isEmpty()) return
+        left.forEach { it.expected = false }
+        recomputeHold()
+    }
+
     private fun checkHoldTimeout() {
         val st = state ?: return
         if (!st.hold || now() - holdSince < HOLD_TIMEOUT_MS) return
-        waitingMembers(st).forEach { skipped.add(it.first) }
+        viewers().filter { isWaiting(it, st) }.forEach { skipped.add(it.id) }
         broadcastChat(SYSTEM_ID, "", "Continuando sem ${st.waitingFor.joinToString()}")
         recomputeHold()
     }
@@ -208,7 +241,7 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
     private fun heartbeat() {
         val st = state ?: return
         val t = now()
-        val canAnchor = st.playing && !st.hold && hostKey == st.key && hostReady &&
+        val canAnchor = st.playing && !st.hold && self.key == st.key && self.ready &&
             t - lastJump > 2_000 && t - hostPosAt < 1_500
         if (canAnchor) state = st.copy(positionMs = hostPos + (t - hostPosAt), anchorAt = t)
         broadcastState()
@@ -223,7 +256,7 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
 
     private fun publishMembers() {
         val members = listOf(Member(HOST_ID, nick, isHost = true)) +
-            peers.values.filter { it.joined }.map { Member(it.id, it.nick) }
+            peers.values.filter { it.joined }.map { Member(it.viewer.id, it.viewer.nick) }
         events.updateSession { it.copy(members = members) }
         val msg = Msg(MsgType.MEMBERS, members = members)
         peers.values.forEach { if (it.joined) it.conn.send(msg) }
@@ -237,7 +270,7 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
     }
 
     private fun uniqueNick(base: String): String {
-        val taken = peers.values.filter { it.joined }.map { it.nick.lowercase() }.toSet() + nick.lowercase()
+        val taken = viewers().map { it.nick.lowercase() }.toSet()
         if (base.lowercase() !in taken) return base
         return (2..99).map { "$base $it" }.first { it.lowercase() !in taken }
     }
@@ -245,5 +278,6 @@ internal class PartyHost(private val nick: String, private val events: PartyEven
     companion object {
         const val HOST_ID = "host"
         private const val HOLD_TIMEOUT_MS = 12_000L
+        private const val LEFT_GRACE_MS = 2_500L
     }
 }

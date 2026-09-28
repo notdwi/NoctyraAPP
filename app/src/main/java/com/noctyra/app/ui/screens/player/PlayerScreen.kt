@@ -2,6 +2,7 @@ package com.noctyra.app.ui.screens.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -75,16 +76,28 @@ fun PlayerScreen(
 
     val key = partyKey(slug, season, episode)
     val inParty = session != null
+    val isHost = session?.isHost ?: true
     val partyState = session?.state?.takeIf { it.key == key }
+    val followsParty = inParty && (isHost || partyState != null)
+    val context = LocalContext.current
 
-    LaunchedEffect(key, inParty) {
-        if (!inParty) return@LaunchedEffect
-        withTimeoutOrNull(1_500) { viewModel.detail.first { it != null } }
-        val m = currentMeta
-        Party.openedEpisode(slug, m.title, m.poster, season, episode)
+    LaunchedEffect(key, inParty, isHost) {
+        if (!inParty || !isHost) return@LaunchedEffect
+        val quick = viewModel.detail.value ?: withTimeoutOrNull(3_000) { viewModel.detail.first { it != null } }
+        Party.openedEpisode(slug, quick?.anime?.title ?: currentMeta.title, quick?.anime?.posterUrl ?: currentMeta.poster, season, episode)
+        if (quick != null) return@LaunchedEffect
+        val late = withTimeoutOrNull(10_000) { viewModel.detail.first { it != null } } ?: return@LaunchedEffect
+        Party.openedEpisode(slug, late.anime.title, late.anime.posterUrl, season, episode)
     }
 
-    val goTo: (Episode?) -> Unit = { ep -> ep?.let { onEpisodeClick(it.season, it.number) } }
+    val goTo: (Episode?) -> Unit = { ep ->
+        when {
+            ep == null -> Unit
+            inParty && !isHost -> Toast.makeText(context, "Na party, só o host escolhe o episódio", Toast.LENGTH_SHORT).show()
+            else -> onEpisodeClick(ep.season, ep.number)
+        }
+    }
+    val canNavigate = !inParty || isHost
 
     Column(
         Modifier
@@ -109,13 +122,13 @@ fun PlayerScreen(
                                 LibraryStore.progressFor(slug, season, episode)
                                     ?.takeIf { !it.isFinished && it.positionMs > 10_000 }?.positionMs ?: 0L
                             },
-                            hasPrevious = previousEpisode != null,
-                            hasNext = nextEpisode != null,
-                            partyKey = if (inParty) key else null,
+                            hasPrevious = canNavigate && previousEpisode != null,
+                            hasNext = canNavigate && nextEpisode != null,
+                            partyKey = if (followsParty) key else null,
                             onPrevious = { goTo(previousEpisode) },
                             onNext = { goTo(nextEpisode) },
-                            onUserPlayPause = { playing, pos -> if (inParty) Party.userPlayPause(playing, pos) },
-                            onUserSeek = { pos -> if (inParty) Party.userSeek(pos) },
+                            onUserPlayPause = { playing, pos -> if (followsParty) Party.userPlayPause(playing, pos) },
+                            onUserSeek = { pos -> if (followsParty) Party.userSeek(pos) },
                             onProgress = { pos, dur ->
                                 val m = currentMeta
                                 LibraryStore.saveProgress(
@@ -128,8 +141,7 @@ fun PlayerScreen(
                             },
                             onEnded = {
                                 val next = currentNext
-                                val canAdvance = session?.isHost ?: true
-                                if (next != null && canAdvance && AppSettings.autoplayNext.value) goTo(next)
+                                if (next != null && isHost && AppSettings.autoplayNext.value) goTo(next)
                             },
                             onNearEnd = {
                                 currentNext?.let { n ->
@@ -168,8 +180,8 @@ fun PlayerScreen(
                 isOffline = offlineMeta != null,
                 inParty = inParty,
                 chat = chat,
-                previous = previousEpisode,
-                next = nextEpisode,
+                previous = previousEpisode.takeIf { canNavigate },
+                next = nextEpisode.takeIf { canNavigate },
                 onEpisode = goTo
             )
         }

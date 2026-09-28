@@ -29,6 +29,9 @@ object Party {
 
     val isActive: Boolean get() = engine != null
 
+    /** Fora da party qualquer um escolhe; dentro, só o host. */
+    val canChooseEpisode: Boolean get() = _session.value?.isHost ?: true
+
     private val events = object : PartyEvents {
         override fun updateSession(transform: (PartySession) -> PartySession) {
             _session.update { current -> current?.let(transform) }
@@ -105,7 +108,7 @@ object Party {
     fun userSeek(positionMs: Long) { engine?.userSeek(positionMs) }
     fun reportPlayer(key: String?, ready: Boolean, positionMs: Long) { engine?.reportPlayer(key, ready, positionMs) }
 
-    fun targetPosition(state: PartyState): Long = state.positionAt(engine?.hostNow() ?: now())
+    fun targetPosition(state: PartyState): Long? = engine?.hostNow()?.let(state::positionAt)
 
     private fun reset() {
         engine = null
