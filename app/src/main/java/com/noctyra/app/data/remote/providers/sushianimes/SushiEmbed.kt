@@ -61,10 +61,10 @@ internal object SushiEmbed {
             .header("Accept", "*/*")
             .build()
 
-        val response = HttpClient.okHttp.newCall(request).execute()
-        if (!response.isSuccessful) return null
-
-        val html = response.body?.string() ?: return null
+        val html = HttpClient.okHttp.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            response.body?.string()
+        } ?: return null
         val doc  = Jsoup.parse(html)
         val iframe = doc.select("iframe").first() ?: return null
 
@@ -121,9 +121,10 @@ internal object SushiEmbed {
                 .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
                 .build()
 
-            val resp = HttpClient.okHttp.newCall(req).execute()
-            if (!resp.isSuccessful) return null
-            val pageHtml = resp.body?.string() ?: return null
+            val pageHtml = HttpClient.media.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                resp.body?.string()
+            } ?: return null
 
             // Try playerEmbed pattern first
             for (candidate in listOf(pageHtml, org.jsoup.parser.Parser.unescapeEntities(pageHtml, false))) {

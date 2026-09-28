@@ -1,12 +1,16 @@
 package com.noctyra.app.data.remote.http
 
+import android.content.Context
+import okhttp3.Cache
 import okhttp3.CipherSuite
+import okhttp3.ConnectionPool
 import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.TlsVersion
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 object HttpClient {
@@ -25,23 +29,47 @@ object HttpClient {
         )
         .build()
 
-    val okHttp: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .connectionSpecs(listOf(chromeSpec, ConnectionSpec.COMPATIBLE_TLS, ConnectionSpec.CLEARTEXT))
-        .followRedirects(false)
-        .build()
+    private var cacheDir: File? = null
+
+    fun init(context: Context) {
+        cacheDir = File(context.cacheDir, "http")
+    }
+
+    val okHttp: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .connectionPool(ConnectionPool(6, 5, TimeUnit.MINUTES))
+            .connectionSpecs(listOf(chromeSpec, ConnectionSpec.COMPATIBLE_TLS, ConnectionSpec.CLEARTEXT))
+            .followRedirects(false)
+            .apply { cacheDir?.let { cache(Cache(it, 10L * 1024 * 1024)) } }
+            .build()
+    }
+
+    val media: OkHttpClient by lazy {
+        okHttp.newBuilder()
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
 
     fun fetchDoc(url: String, referer: String = "", userAgent: String = MOBILE_UA): Document {
         val reqBuilder = Request.Builder()
             .url(url)
             .header("User-Agent", userAgent)
+            .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
         if (referer.isNotEmpty()) reqBuilder.header("Referer", referer)
-        val response = okHttp.newCall(reqBuilder.build()).execute()
-        if (response.code in 300..399) throw Exception("Redirect: not found")
-        if (response.code == 404 || response.code == 410) throw Exception("Not found")
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
-        return Jsoup.parse(response.body?.string() ?: "")
+        okHttp.newCall(reqBuilder.build()).execute().use { response ->
+            if (response.code in 300..399) throw Exception("Redirect: not found")
+            if (response.code == 404 || response.code == 410) throw Exception("Not found")
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
+            return Jsoup.parse(response.body?.string() ?: "", url)
+        }
+    }
+
+    fun clearCache() {
+        runCatching { okHttp.cache?.evictAll() }
     }
 
     const val MOBILE_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36"

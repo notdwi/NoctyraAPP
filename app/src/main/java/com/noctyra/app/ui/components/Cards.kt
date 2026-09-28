@@ -1,208 +1,452 @@
 package com.noctyra.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.noctyra.app.data.local.WatchProgress
 import com.noctyra.app.data.model.Anime
 import com.noctyra.app.data.model.Episode
+import com.noctyra.app.data.model.cleanTitle
+import com.noctyra.app.data.model.displayTitle
+import com.noctyra.app.data.model.isDubbed
+import com.noctyra.app.download.DownloadItem
+import com.noctyra.app.download.DownloadStatus
 import com.noctyra.app.ui.theme.*
 
+private val PosterShape = RoundedCornerShape(14.dp)
+
+fun Anime.cardSubtitle(): String = when {
+    subtitle.isNotEmpty() && latestEpisode > 0 -> subtitle
+    totalEps > 0 -> if (isMovie) "Filme" else "$totalEps Episódios"
+    genres.isNotEmpty() -> genres.first()
+    isMovie -> "Filme"
+    else -> "Anime"
+}
+
 @Composable
-fun AnimeCard(anime: Anime, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .width(120.dp)
-            .clickable(onClick = onClick)
-    ) {
+fun PosterCard(
+    anime: Anime,
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier = Modifier,
+    width: Dp? = 150.dp,
+    rank: Int? = null
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Column(modifier = if (width != null) modifier.width(width) else modifier) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(170.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(SurfaceCard)
+                .aspectRatio(0.72f)
+                .clip(PosterShape)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), PosterShape)
+                .clickable(onClick = onClick)
         ) {
-            if (anime.posterUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = anime.posterUrl,
-                    contentDescription = anime.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            // Bottom gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.7f)))
-                    )
-            )
-            // Movie badge
-            if (anime.isMovie) {
-                Text(
-                    "Filme",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
+            NetImage(anime.posterUrl, Modifier.fillMaxSize(), contentDescription = anime.title)
+            if (anime.isDubbed) DubBadge(Modifier.align(Alignment.TopStart).padding(8.dp))
+            else if (anime.isMovie) DubBadge(Modifier.align(Alignment.TopStart).padding(8.dp), text = "FILME")
+            if (anime.rating.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Pink.copy(0.9f))
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.Black.copy(alpha = 0.6f))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC94D), modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(2.dp))
+                    Text(anime.rating, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (rank != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .background(CardBottomFade)
+                )
+                Text(
+                    "$rank",
+                    color = Color.White,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 2.dp)
                 )
             }
         }
-        Spacer(Modifier.height(7.dp))
-        Text(
-            text = anime.title,
-            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = TextPrimary
-        )
-    }
-}
-
-@Composable
-fun AnimeCardWide(anime: Anime, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .width(200.dp)
-            .height(120.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceCard)
-            .clickable(onClick = onClick)
-    ) {
-        if (anime.posterUrl.isNotEmpty()) {
-            AsyncImage(
-                model = anime.posterUrl,
-                contentDescription = anime.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(0.85f)),
-                        startY = 40f
-                    )
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    anime.displayTitle,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-        )
-        Text(
-            text = anime.title,
-            style = MaterialTheme.typography.labelMedium,
-            color = Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(10.dp)
-        )
-    }
-}
-
-@Composable
-fun EpisodeCard(episode: Episode, animePoster: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceCard)
-            .clickable(onClick = onClick)
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .width(110.dp)
-                .height(62.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(SurfaceElevated)
-        ) {
-            val imageUrl = episode.thumbUrl.ifEmpty { animePoster }
-            if (imageUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = "Ep ${episode.number}",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            // Play icon overlay
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Pink.copy(0.88f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("▶", color = Color.White, style = MaterialTheme.typography.labelSmall)
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Episódio ${episode.number}", style = MaterialTheme.typography.titleSmall)
-            if (episode.title.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = episode.title,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
+                    anime.cardSubtitle(),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            Box {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = "Opções",
+                    tint = TextSecondary,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .clickable { menuOpen = true }
+                )
+                if (menuOpen) {
+                    AnimeMenu(
+                        isFavorite = isFavorite,
+                        onDismiss = { menuOpen = false },
+                        onToggleFavorite = onToggleFavorite,
+                        onDetails = onClick
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun SettingsCard(
-    icon: @Composable () -> Unit,
-    title: String,
-    subtitle: String,
+fun AnimeMenu(isFavorite: Boolean, onDismiss: () -> Unit, onToggleFavorite: () -> Unit, onDetails: () -> Unit) {
+    DropdownMenu(expanded = true, onDismissRequest = onDismiss, containerColor = SurfaceElevated) {
+        DropdownMenuItem(
+            text = { Text(if (isFavorite) "Remover da Minha Lista" else "Adicionar à Minha Lista") },
+            leadingIcon = {
+                Icon(if (isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null, tint = Pink)
+            },
+            onClick = { onDismiss(); onToggleFavorite() }
+        )
+        DropdownMenuItem(
+            text = { Text("Ver detalhes") },
+            leadingIcon = { Icon(Icons.Default.Info, null, tint = TextSecondary) },
+            onClick = { onDismiss(); onDetails() }
+        )
+    }
+}
+
+@Composable
+fun NewEpisodeCard(anime: Anime, onClick: () -> Unit, modifier: Modifier = Modifier, width: Dp? = 230.dp) {
+    Column(modifier = if (width != null) modifier.width(width) else modifier) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(PosterShape)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), PosterShape)
+                .clickable(onClick = onClick)
+        ) {
+            NetImage(anime.posterUrl, Modifier.fillMaxSize(), contentDescription = anime.title)
+            Box(Modifier.fillMaxWidth().height(56.dp).align(Alignment.BottomCenter).background(CardBottomFade))
+            if (anime.isDubbed) DubBadge(Modifier.align(Alignment.TopStart).padding(8.dp))
+            Text(
+                anime.subtitle,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.BottomStart).padding(10.dp)
+            )
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(Pink),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            anime.displayTitle,
+            style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+fun ContinueWatchingCard(
+    progress: WatchProgress,
     onClick: () -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(18.dp)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(shape)
             .background(SurfaceCard)
+            .border(1.dp, CardBorder, shape)
             .clickable(onClick = onClick)
-            .padding(16.dp),
+            .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(Pink.copy(0.14f)),
-            contentAlignment = Alignment.Center
-        ) { icon() }
+            Modifier
+                .weight(0.48f)
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(14.dp))
+        ) {
+            NetImage(progress.thumbUrl.ifEmpty { progress.posterUrl }, Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 12.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(26.dp))
+            }
+            ProgressLine(
+                progress.fraction,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
         Spacer(Modifier.width(14.dp))
-        Column {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+        Column(Modifier.weight(0.52f)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    cleanTitle(progress.title),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Box {
+                    Icon(
+                        Icons.Default.MoreVert, "Opções", tint = TextPrimary,
+                        modifier = Modifier.size(24.dp).clip(CircleShape).clickable { menuOpen = true }
+                    )
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, containerColor = SurfaceElevated) {
+                        DropdownMenuItem(
+                            text = { Text("Remover de Continue assistindo") },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = ErrorRed) },
+                            onClick = { menuOpen = false; onRemove() }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            val epLabel = buildString {
+                append("T${progress.season} E${progress.episode}")
+                if (progress.episodeTitle.isNotEmpty()) append(" - ").append(progress.episodeTitle)
+            }
+            Text(epLabel, style = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ProgressLine(progress.fraction, Modifier.weight(1f), track = SurfaceElevated)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    if (progress.remainingMinutes > 0) "${progress.remainingMinutes} min restantes" else "Quase no fim",
+                    style = MaterialTheme.typography.labelMedium.copy(color = TextPrimary, fontWeight = FontWeight.SemiBold),
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EpisodeRow(
+    episode: Episode,
+    fallbackThumb: String,
+    progress: WatchProgress?,
+    download: DownloadItem?,
+    isCurrent: Boolean = false,
+    onClick: () -> Unit,
+    onDownload: (() -> Unit)?,
+    onDeleteDownload: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (isCurrent) Pink.copy(alpha = 0.12f) else SurfaceCard)
+            .border(1.dp, if (isCurrent) Pink.copy(alpha = 0.6f) else CardBorder, shape)
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .width(130.dp)
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            NetImage(episode.thumbUrl.ifEmpty { fallbackThumb }, Modifier.fillMaxSize())
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            if (progress != null && progress.fraction > 0.02f) {
+                ProgressLine(
+                    progress.fraction,
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(6.dp)
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "Episódio ${episode.number}",
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp, color = if (isCurrent) PinkLight else TextPrimary)
+            )
+            if (episode.title.isNotEmpty() && !episode.title.equals("Episódio ${episode.number}", true)) {
+                Spacer(Modifier.height(2.dp))
+                Text(episode.title, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (progress?.isFinished == true) {
+                Spacer(Modifier.height(4.dp))
+                Text("Assistido", style = MaterialTheme.typography.labelMedium.copy(color = Pink, fontWeight = FontWeight.SemiBold))
+            }
+        }
+        if (onDownload != null) DownloadButton(download, onDownload, onDeleteDownload)
+    }
+}
+
+@Composable
+fun DownloadButton(item: DownloadItem?, onDownload: () -> Unit, onDelete: (() -> Unit)?) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .clickable {
+                when (item?.status) {
+                    null, DownloadStatus.FAILED -> onDownload()
+                    else -> onDelete?.invoke()
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        when (item?.status) {
+            null -> Icon(Icons.Default.Download, "Baixar", tint = TextSecondary, modifier = Modifier.size(24.dp))
+            DownloadStatus.COMPLETED -> Icon(Icons.Default.DownloadDone, "Baixado", tint = Pink, modifier = Modifier.size(24.dp))
+            DownloadStatus.FAILED -> Icon(Icons.Default.ErrorOutline, "Falhou, tentar de novo", tint = ErrorRed, modifier = Modifier.size(24.dp))
+            DownloadStatus.QUEUED, DownloadStatus.PAUSED -> CircularProgressIndicator(
+                color = Pink, trackColor = SurfaceElevated, strokeWidth = 2.5.dp, modifier = Modifier.size(24.dp)
+            )
+            DownloadStatus.DOWNLOADING -> {
+                if (item.percent > 0f) {
+                    CircularProgressIndicator(
+                        progress = { item.percent / 100f },
+                        color = Pink, trackColor = SurfaceElevated, strokeWidth = 2.5.dp, modifier = Modifier.size(28.dp)
+                    )
+                    Text("${item.percent.toInt()}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                } else {
+                    CircularProgressIndicator(color = Pink, trackColor = SurfaceElevated, strokeWidth = 2.5.dp, modifier = Modifier.size(24.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryTile(name: String, colors: List<Color>, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(16.dp)
+    val brush = remember(colors) { Brush.linearGradient(colors) }
+    Box(
+        modifier
+            .height(76.dp)
+            .clip(shape)
+            .background(brush)
+            .clickable(onClick = onClick)
+            .padding(14.dp)
+    ) {
+        Text(name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Color.White, modifier = Modifier.align(Alignment.TopStart))
+        Icon(
+            icon, null, tint = Color.White.copy(alpha = 0.35f),
+            modifier = Modifier.align(Alignment.BottomEnd).size(34.dp)
+        )
+    }
+}
+
+@Composable
+fun SettingsRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Pink.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) { Icon(icon, null, tint = Pink, modifier = Modifier.size(22.dp)) }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp))
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
         }
+        trailing?.invoke()
     }
 }

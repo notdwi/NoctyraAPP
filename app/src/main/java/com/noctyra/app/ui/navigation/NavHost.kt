@@ -1,154 +1,176 @@
 package com.noctyra.app.ui.navigation
 
-import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.noctyra.app.ui.components.BottomTab
+import com.noctyra.app.ui.components.Category
+import com.noctyra.app.ui.components.NoctyraBottomBar
+import com.noctyra.app.ui.components.rememberLiteMode
+import com.noctyra.app.ui.screens.category.CategoryScreen
 import com.noctyra.app.ui.screens.detail.DetailScreen
+import com.noctyra.app.ui.screens.explore.ExploreScreen
 import com.noctyra.app.ui.screens.home.HomeScreen
+import com.noctyra.app.ui.screens.home.HomeViewModel
+import com.noctyra.app.ui.screens.mylist.MyListScreen
 import com.noctyra.app.ui.screens.player.PlayerScreen
 import com.noctyra.app.ui.screens.search.SearchScreen
-import com.noctyra.app.ui.screens.settings.SettingsScreen
-import com.noctyra.app.ui.theme.*
+import com.noctyra.app.ui.screens.settings.ProfileScreen
+import com.noctyra.app.ui.theme.BackgroundDark
 
-@Composable
-fun NoctyraNavHost() {
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-
-    val showBottomBar = bottomNavItems.any { item ->
-        currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
-    }
-
-    Scaffold(
-        containerColor = BackgroundDark,
-        bottomBar = {
-            if (showBottomBar) {
-                Box(
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .padding(start = 20.dp, end = 20.dp, bottom = 16.dp)
-                ) {
-                    NavigationBar(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(64.dp)
-                            .clip(RoundedCornerShape(32.dp)),
-                        containerColor = SurfaceElevated,
-                        contentColor = TextPrimary,
-                        tonalElevation = 0.dp
-                    ) {
-                        Spacer(Modifier.width(8.dp))
-                        bottomNavItems.forEach { item ->
-                            val selected = currentDestination?.hierarchy
-                                ?.any { it.route == item.screen.route } == true
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    navController.navigate(item.screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = {
-                                    Icon(
-                                        item.icon,
-                                        contentDescription = item.label,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Pink,
-                                    unselectedIconColor = TextMuted,
-                                    indicatorColor = Pink.copy(alpha = 0.14f)
-                                )
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                    }
-                }
-            }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding).background(BackgroundDark),
-            enterTransition  = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(280)) },
-            exitTransition   = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(280)) },
-            popEnterTransition  = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(280)) },
-            popExitTransition   = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(280)) }
-        ) {
-            composable(Screen.Home.route) {
-                HomeScreen(onAnimeClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) })
-            }
-            composable(Screen.Search.route) {
-                SearchScreen(onAnimeClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) })
-            }
-            composable(Screen.Bookmarks.route) { PlaceholderScreen("Biblioteca") }
-            composable(Screen.Downloads.route) { PlaceholderScreen("Downloads") }
-            composable(Screen.Settings.route) { SettingsScreen() }
-            composable(
-                route = Screen.Detail.route,
-                arguments = listOf(navArgument("slug") { type = NavType.StringType })
-            ) { entry ->
-                val slug = entry.arguments?.getString("slug") ?: ""
-                DetailScreen(
-                    slug = slug,
-                    onBack = { navController.popBackStack() },
-                    onPlayEpisode = { s, season, ep ->
-                        navController.navigate(Screen.Player.createRoute(s, season, ep))
-                    }
-                )
-            }
-            composable(
-                route = Screen.Player.route,
-                arguments = listOf(
-                    navArgument("slug")    { type = NavType.StringType },
-                    navArgument("season")  { type = NavType.IntType },
-                    navArgument("episode") { type = NavType.IntType }
-                )
-            ) { entry ->
-                val slug    = entry.arguments?.getString("slug") ?: ""
-                val season  = entry.arguments?.getInt("season") ?: 1
-                val episode = entry.arguments?.getInt("episode") ?: 1
-                PlayerScreen(
-                    slug = slug, season = season, episode = episode,
-                    onBack = { navController.popBackStack() },
-                    onEpisodeClick = { s, ep ->
-                        navController.navigate(Screen.Player.createRoute(slug, s, ep)) {
-                            popUpTo(Screen.Player.route) { inclusive = true }
-                        }
-                    }
-                )
-            }
-        }
+private fun NavHostController.navigateTab(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }
 
 @Composable
-private fun PlaceholderScreen(title: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(title, style = MaterialTheme.typography.headlineMedium)
+fun NoctyraNavHost() {
+    val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val homeViewModel: HomeViewModel = viewModel()
+    val lite = rememberLiteMode()
+
+    val openDetail: (String) -> Unit = { navController.navigate(Routes.detail(it)) }
+    val openPlayer: (String, Int, Int) -> Unit = { s, season, ep -> navController.navigate(Routes.player(s, season, ep)) }
+    val openSearch: (String) -> Unit = { navController.navigate(Routes.search(it)) }
+    val openCategory: (Category) -> Unit = { navController.navigate(Routes.category(it.slug, it.name)) }
+
+    Box(Modifier.fillMaxSize().background(BackgroundDark)) {
+        NavHost(
+            navController = navController,
+            startDestination = Routes.HOME,
+            modifier = Modifier.fillMaxSize(),
+            enterTransition = { if (lite) EnterTransition.None else fadeIn(tween(180)) },
+            exitTransition = { if (lite) ExitTransition.None else fadeOut(tween(120)) },
+            popEnterTransition = { if (lite) EnterTransition.None else fadeIn(tween(180)) },
+            popExitTransition = { if (lite) ExitTransition.None else fadeOut(tween(120)) }
+        ) {
+            composable(Routes.HOME) {
+                HomeScreen(
+                    viewModel = homeViewModel,
+                    onAnimeClick = openDetail,
+                    onPlay = openPlayer,
+                    onSearch = { openSearch("") },
+                    onCategory = openCategory,
+                    onOpenMyList = { tab -> navController.navigateTab(Routes.myList(tab)) },
+                    onOpenProfile = { navController.navigateTab(Routes.PROFILE) }
+                )
+            }
+            composable(Routes.EXPLORE) {
+                ExploreScreen(
+                    homeViewModel = homeViewModel,
+                    onSearch = { openSearch("") },
+                    onCategory = openCategory,
+                    onAnimeClick = openDetail
+                )
+            }
+            composable(
+                Routes.MYLIST,
+                arguments = listOf(navArgument("tab") { type = NavType.IntType; defaultValue = 0 })
+            ) { entry ->
+                MyListScreen(
+                    initialTab = entry.arguments?.getInt("tab") ?: 0,
+                    onAnimeClick = openDetail,
+                    onPlay = openPlayer,
+                    onExplore = { navController.navigateTab(Routes.EXPLORE) }
+                )
+            }
+            composable(Routes.PROFILE) {
+                ProfileScreen(
+                    onOpenDownloads = { navController.navigateTab(Routes.myList(2)) },
+                    onOpenHistory = { navController.navigateTab(Routes.myList(1)) }
+                )
+            }
+            composable(
+                Routes.SEARCH,
+                arguments = listOf(navArgument("q") { type = NavType.StringType; defaultValue = "" })
+            ) { entry ->
+                SearchScreen(
+                    initialQuery = entry.arguments?.getString("q").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onAnimeClick = openDetail,
+                    onCategory = openCategory
+                )
+            }
+            composable(
+                Routes.CATEGORY,
+                arguments = listOf(
+                    navArgument("slug") { type = NavType.StringType },
+                    navArgument("name") { type = NavType.StringType; defaultValue = "" }
+                )
+            ) { entry ->
+                CategoryScreen(
+                    slug = entry.arguments?.getString("slug").orEmpty(),
+                    name = entry.arguments?.getString("name").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onAnimeClick = openDetail
+                )
+            }
+            composable(
+                Routes.DETAIL,
+                arguments = listOf(navArgument("slug") { type = NavType.StringType })
+            ) { entry ->
+                DetailScreen(
+                    slug = entry.arguments?.getString("slug").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onPlayEpisode = openPlayer
+                )
+            }
+            composable(
+                Routes.PLAYER,
+                arguments = listOf(
+                    navArgument("slug") { type = NavType.StringType },
+                    navArgument("season") { type = NavType.IntType },
+                    navArgument("episode") { type = NavType.IntType }
+                )
+            ) { entry ->
+                val slug = entry.arguments?.getString("slug").orEmpty()
+                PlayerScreen(
+                    slug = slug,
+                    season = entry.arguments?.getInt("season") ?: 1,
+                    episode = entry.arguments?.getInt("episode") ?: 1,
+                    onBack = { navController.popBackStack() },
+                    onEpisodeClick = { season, ep ->
+                        navController.navigate(Routes.player(slug, season, ep)) {
+                            popUpTo(Routes.PLAYER) { inclusive = true }
+                        }
+                    }
+                )
+            }
+        }
+
+        if (currentRoute in Routes.tabRoutes) {
+            NoctyraBottomBar(
+                currentRoute = currentRoute,
+                onTab = { tab ->
+                    val route = if (tab == BottomTab.MyList) Routes.myList(0) else tab.route
+                    navController.navigateTab(route)
+                },
+                onSearch = { openSearch("") },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }

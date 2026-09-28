@@ -1,46 +1,69 @@
 package com.noctyra.app.ui.screens.player
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
-import coil.compose.AsyncImage
+import com.noctyra.app.data.local.AppSettings
+import com.noctyra.app.data.local.LibraryStore
+import com.noctyra.app.data.local.WatchProgress
 import com.noctyra.app.data.model.AnimeDetail
-import com.noctyra.app.data.model.StreamResult
+import com.noctyra.app.data.model.Episode
 import com.noctyra.app.data.model.UiState
+import com.noctyra.app.data.model.cleanTitle
+import com.noctyra.app.data.remote.http.HttpClient
+import com.noctyra.app.download.DownloadCenter
 import com.noctyra.app.ui.components.*
 import com.noctyra.app.ui.theme.*
+import kotlinx.coroutines.delay
+
+private data class EpisodeMeta(val title: String, val poster: String, val episodeTitle: String, val thumb: String)
 
 @Composable
 fun PlayerScreen(
@@ -51,169 +74,182 @@ fun PlayerScreen(
     onEpisodeClick: (Int, Int) -> Unit,
     viewModel: PlayerViewModel = viewModel()
 ) {
-    val streamState by viewModel.streamState.collectAsState()
-    val animeState  by viewModel.animeState.collectAsState()
-    var isFullscreen by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val activity = context as? Activity
+    val source by viewModel.source.collectAsStateWithLifecycle()
+    val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val favorites by LibraryStore.favoriteSlugs.collectAsStateWithLifecycle()
+    val history by LibraryStore.history.collectAsStateWithLifecycle()
+    val downloads by DownloadCenter.downloads.collectAsStateWithLifecycle()
+    var isFullscreen by rememberSaveable { mutableStateOf(false) }
+    val activity = LocalContext.current as? Activity
+    val view = LocalView.current
 
-    LaunchedEffect(slug, season, episode) { viewModel.loadStream(slug, season, episode) }
+    LaunchedEffect(slug, season, episode) { viewModel.load(slug, season, episode) }
 
-    // Lock/unlock orientation based on fullscreen
     DisposableEffect(isFullscreen) {
-        activity?.requestedOrientation = if (isFullscreen)
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        else
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        val window = activity?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        if (isFullscreen) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose {}
+    }
+    DisposableEffect(Unit) {
         onDispose {
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            activity?.window?.let { WindowCompat.getInsetsController(it, view).show(WindowInsetsCompat.Type.systemBars()) }
         }
     }
+    BackHandler(enabled = isFullscreen) { isFullscreen = false }
 
-    Column(modifier = Modifier.fillMaxSize().background(BackgroundDark)) {
+    val seasonEpisodes = remember(detail, season) { detail?.episodes?.filter { it.season == season }.orEmpty() }
+    val nextEpisode = remember(detail, season, episode) {
+        detail?.episodes?.firstOrNull { it.season > season || (it.season == season && it.number > episode) }
+    }
+    val currentEp = remember(detail, season, episode) { detail?.episodes?.firstOrNull { it.season == season && it.number == episode } }
 
-        // ── Video area ──────────────────────────────────────────────────────
+    val offlineMeta = (source as? UiState.Success)?.data.let { it as? PlaybackSource.Offline }?.meta
+    val meta = EpisodeMeta(
+        title = detail?.anime?.title ?: offlineMeta?.title ?: slug,
+        poster = detail?.anime?.posterUrl ?: offlineMeta?.posterUrl.orEmpty(),
+        episodeTitle = currentEp?.title ?: offlineMeta?.episodeTitle.orEmpty(),
+        thumb = currentEp?.thumbUrl ?: offlineMeta?.thumbUrl.orEmpty()
+    )
+    val currentMeta by rememberUpdatedState(meta)
+    val currentNext by rememberUpdatedState(nextEpisode)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(if (isFullscreen) Color.Black else BackgroundDark)
+    ) {
         Box(
             modifier = if (isFullscreen) Modifier.fillMaxSize()
-                       else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                       else Modifier.statusBarsPadding().fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)
         ) {
-            when (val s = streamState) {
-                is UiState.Loading ->
-                    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                        LoadingScreen()
+            when (val s = source) {
+                is UiState.Loading -> LoadingScreen()
+                is UiState.Error -> ErrorScreen(s.message, onRetry = { viewModel.load(slug, season, episode, force = true) })
+                is UiState.Success -> {
+                    val data = s.data
+                    if (data is PlaybackSource.Online && data.stream.streamType == "embed") {
+                        EmbedPlayer(data.stream.streamUrl)
+                    } else {
+                        VideoPlayer(
+                            source = data,
+                            startPositionMs = remember(slug, season, episode) {
+                                LibraryStore.progressFor(slug, season, episode)
+                                    ?.takeIf { !it.isFinished && it.positionMs > 10_000 }?.positionMs ?: 0L
+                            },
+                            onProgress = { pos, dur ->
+                                val m = currentMeta
+                                LibraryStore.saveProgress(
+                                    WatchProgress(
+                                        slug = slug, title = m.title, posterUrl = m.poster,
+                                        season = season, episode = episode, episodeTitle = m.episodeTitle,
+                                        thumbUrl = m.thumb, positionMs = pos, durationMs = dur
+                                    )
+                                )
+                            },
+                            onEnded = {
+                                val next = currentNext
+                                if (next != null && AppSettings.autoplayNext.value) onEpisodeClick(next.season, next.number)
+                            },
+                            onFullscreenToggle = { isFullscreen = !isFullscreen }
+                        )
                     }
-                is UiState.Error ->
-                    Box(Modifier.fillMaxSize().background(Color.Black)) {
-                        ErrorScreen(message = s.message, onRetry = { viewModel.loadStream(slug, season, episode) })
-                    }
-                is UiState.Success ->
-                    VideoPlayer(stream = s.data, isFullscreen = isFullscreen)
-            }
-
-            // Back button (always visible)
-            if (!isFullscreen) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.align(Alignment.TopStart).padding(4.dp)
-                        .size(40.dp).clip(CircleShape).background(Color.Black.copy(0.4f))
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.White,
-                        modifier = Modifier.size(20.dp))
                 }
             }
-
-            // Fullscreen toggle
-            IconButton(
-                onClick = { isFullscreen = !isFullscreen },
-                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
-                    .size(40.dp).clip(CircleShape).background(Color.Black.copy(0.4f))
-            ) {
-                Icon(
-                    if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                    "Tela cheia", tint = Color.White, modifier = Modifier.size(20.dp)
+            if (!isFullscreen) {
+                CircleIconButton(
+                    Icons.AutoMirrored.Filled.ArrowBack, "Voltar", onBack,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp), size = 38.dp
                 )
             }
         }
 
-        // ── Info + episodes (only when not fullscreen) ──────────────────────
         if (!isFullscreen) {
-            val animeDetail = (animeState as? UiState.Success)?.data
-
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                // Anime info card
-                if (animeDetail != null) {
-                    item { AnimeInfoCard(detail = animeDetail, episode = episode, season = season) }
-                }
-
-                // Episode selector header
-                item {
-                    SectionHeader(
-                        title = "Episódios",
-                        showSeeAll = animeDetail != null,
-                        onSeeAll = null
+            val progressByKey = remember(history, slug) { history.asSequence().filter { it.slug == slug }.associateBy { it.key } }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                item(key = "info") {
+                    EpisodeInfo(
+                        title = meta.title,
+                        season = season,
+                        episode = episode,
+                        episodeTitle = meta.episodeTitle,
+                        isOffline = offlineMeta != null,
+                        isFavorite = slug in favorites,
+                        detail = detail,
+                        next = nextEpisode,
+                        onNext = { nextEpisode?.let { onEpisodeClick(it.season, it.number) } }
                     )
                 }
-
-                // Other episodes
-                val otherEps = animeDetail?.episodes?.filter {
-                    it.season > season || (it.season == season && it.number > episode)
-                } ?: emptyList()
-
-                if (otherEps.isEmpty() && animeDetail != null) {
-                    item {
-                        Box(
-                            Modifier.fillMaxWidth().padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Sem mais episódios", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                } else {
-                    items(otherEps) { ep ->
-                        EpisodeCard(
+                if (seasonEpisodes.isNotEmpty()) {
+                    item(key = "header") { SectionHeader("Episódios • Temporada $season") }
+                    items(seasonEpisodes, key = { "${it.season}/${it.number}" }, contentType = { "episode" }) { ep ->
+                        val id = DownloadCenter.downloadId(slug, ep.season, ep.number)
+                        EpisodeRow(
                             episode = ep,
-                            animePoster = animeDetail?.anime?.posterUrl ?: "",
-                            onClick = { onEpisodeClick(ep.season, ep.number) },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            fallbackThumb = detail?.anime?.posterUrl.orEmpty(),
+                            progress = progressByKey[id],
+                            download = downloads[id],
+                            isCurrent = ep.number == episode,
+                            onClick = { if (ep.number != episode) onEpisodeClick(ep.season, ep.number) },
+                            onDownload = null,
+                            onDeleteDownload = null,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp)
                         )
                     }
                 }
-
-                item { Spacer(Modifier.height(16.dp)) }
             }
         }
     }
 }
 
 @Composable
-private fun AnimeInfoCard(detail: AnimeDetail, episode: Int, season: Int) {
-    val anime = detail.anime
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceCard)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AsyncImage(
-            model = anime.posterUrl,
-            contentDescription = anime.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.width(72.dp).height(100.dp).clip(RoundedCornerShape(10.dp))
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(anime.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (anime.rating.isNotEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("⭐", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.width(3.dp))
-                        Text(anime.rating, style = MaterialTheme.typography.labelLarge, color = TextPrimary)
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Pink.copy(0.2f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        "EP $episode",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = PinkLight
-                    )
-                }
+private fun EpisodeInfo(
+    title: String,
+    season: Int,
+    episode: Int,
+    episodeTitle: String,
+    isOffline: Boolean,
+    isFavorite: Boolean,
+    detail: AnimeDetail?,
+    next: Episode?,
+    onNext: () -> Unit
+) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+        Text(cleanTitle(title), style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Pill("T$season • EP $episode", color = Pink.copy(alpha = 0.16f), textColor = PinkLight)
+            if (isOffline) {
+                Spacer(Modifier.width(8.dp))
+                Pill("Offline", color = SuccessGreen.copy(alpha = 0.14f), textColor = SuccessGreen)
             }
-            if (anime.genres.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    anime.genres.take(2).joinToString(" • "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
+        }
+        if (episodeTitle.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(episodeTitle, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (next != null) {
+                PinkButton("Próximo: EP ${next.number}", onNext, icon = Icons.Default.SkipNext, modifier = Modifier.weight(1f), height = 46.dp)
+                Spacer(Modifier.width(12.dp))
+            }
+            if (detail != null) {
+                GhostButton(
+                    if (isFavorite) "Na lista" else "Minha Lista",
+                    onClick = { LibraryStore.toggleFavorite(detail.anime) },
+                    icon = if (isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    tint = if (isFavorite) Pink else TextPrimary,
+                    height = 46.dp,
+                    modifier = if (next == null) Modifier.fillMaxWidth() else Modifier
                 )
             }
         }
@@ -222,60 +258,122 @@ private fun AnimeInfoCard(detail: AnimeDetail, episode: Int, season: Int) {
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun VideoPlayer(stream: StreamResult, isFullscreen: Boolean) {
+private fun VideoPlayer(
+    source: PlaybackSource,
+    startPositionMs: Long,
+    onProgress: (Long, Long) -> Unit,
+    onEnded: () -> Unit,
+    onFullscreenToggle: () -> Unit
+) {
     val context = LocalContext.current
+    val lite = rememberLiteMode()
+    val currentOnProgress by rememberUpdatedState(onProgress)
+    val currentOnEnded by rememberUpdatedState(onEnded)
 
-    if (stream.streamType == "embed") {
-        AndroidView(
-            factory = { ctx ->
-                android.webkit.WebView(ctx).apply {
-                    // Spoof a real Chrome desktop browser to bypass Cloudflare/anti-WebView blocks
-                    settings.userAgentString =
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.mediaPlaybackRequiresUserGesture = false
-                    settings.allowContentAccess = true
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    webViewClient = android.webkit.WebViewClient()
-                    webChromeClient = android.webkit.WebChromeClient()
-                    loadUrl(stream.streamUrl)
+    val player = remember(source) {
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(if (lite) 10_000 else 20_000, if (lite) 25_000 else 50_000, 1_500, 3_000)
+            .build()
+        ExoPlayer.Builder(context).setLoadControl(loadControl).build().apply {
+            setMediaSource(buildMediaSource(source))
+            if (startPositionMs > 0) seekTo(startPositionMs)
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    fun report() {
+        val dur = player.duration
+        if (dur > 0 && player.currentPosition > 0) currentOnProgress(player.currentPosition, dur)
+    }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED) {
+                    val dur = player.duration
+                    if (dur > 0) currentOnProgress(dur, dur)
+                    currentOnEnded()
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-    } else {
-        val player = remember {
-            ExoPlayer.Builder(context).build().apply {
-                val dataSourceFactory = DefaultHttpDataSource.Factory().apply {
-                    setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
-                    if (stream.headers.isNotEmpty()) setDefaultRequestProperties(stream.headers)
-                }
-                val uri = Uri.parse(stream.streamUrl)
-                val mediaSource = when (stream.streamType) {
-                    "m3u8" -> HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
-                    else   -> ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
-                }
-                setMediaSource(mediaSource)
-                prepare()
-                playWhenReady = true
             }
         }
-
-        DisposableEffect(Unit) { onDispose { player.release() } }
-
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    this.player = player
-                    useController = true
-                    setShowNextButton(false)
-                    setShowPreviousButton(false)
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        player.addListener(listener)
+        onDispose {
+            report()
+            player.removeListener(listener)
+            player.release()
+        }
     }
+
+    LaunchedEffect(player) {
+        while (true) {
+            delay(5_000)
+            if (player.isPlaying) report()
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, player) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) { report(); player.pause() }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            PlayerView(ctx).apply {
+                this.player = player
+                useController = true
+                keepScreenOn = true
+                setShowNextButton(false)
+                setShowPreviousButton(false)
+                setFullscreenButtonClickListener { onFullscreenToggle() }
+            }
+        },
+        update = { it.player = player },
+        onRelease = { it.player = null },
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
+@OptIn(UnstableApi::class)
+private fun buildMediaSource(source: PlaybackSource): MediaSource = when (source) {
+    is PlaybackSource.Offline ->
+        DefaultMediaSourceFactory(DownloadCenter.offlineDataSourceFactory()).createMediaSource(source.item)
+    is PlaybackSource.Online -> {
+        val stream = source.stream
+        val factory = OkHttpDataSource.Factory(HttpClient.media)
+            .setUserAgent(HttpClient.MOBILE_UA)
+            .setDefaultRequestProperties(stream.headers)
+        val item = MediaItem.fromUri(Uri.parse(stream.streamUrl))
+        if (stream.streamType == "m3u8") HlsMediaSource.Factory(factory).createMediaSource(item)
+        else ProgressiveMediaSource.Factory(factory).createMediaSource(item)
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun EmbedPlayer(url: String) {
+    AndroidView(
+        factory = { ctx ->
+            WebView(ctx).apply {
+                settings.userAgentString =
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.mediaPlaybackRequiresUserGesture = false
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                webViewClient = WebViewClient()
+                webChromeClient = WebChromeClient()
+                setBackgroundColor(android.graphics.Color.BLACK)
+                loadUrl(url)
+            }
+        },
+        onRelease = { it.stopLoading(); it.destroy() },
+        modifier = Modifier.fillMaxSize()
+    )
 }

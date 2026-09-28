@@ -9,34 +9,39 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class SearchViewModel : ViewModel() {
-    private val repository = AnimeRepository()
-
     private val _query = MutableStateFlow("")
-    val query: StateFlow<String> = _query
+    val query: StateFlow<String> = _query.asStateFlow()
 
     private val _results = MutableStateFlow<UiState<List<Anime>>?>(null)
-    val results: StateFlow<UiState<List<Anime>>?> = _results
+    val results: StateFlow<UiState<List<Anime>>?> = _results.asStateFlow()
 
     private var searchJob: Job? = null
+    private var initialApplied = false
 
-    fun updateQuery(newQuery: String) {
+    fun applyInitial(query: String) {
+        if (initialApplied || query.isBlank()) return
+        initialApplied = true
+        updateQuery(query, immediate = true)
+    }
+
+    fun updateQuery(newQuery: String, immediate: Boolean = false) {
         _query.value = newQuery
         searchJob?.cancel()
-        if (newQuery.length < 2) {
+        if (newQuery.trim().length < 2) {
             _results.value = null
             return
         }
         searchJob = viewModelScope.launch {
-            delay(400)
+            if (!immediate) delay(450)
             _results.value = UiState.Loading
-            try {
-                val data = repository.search(newQuery)
-                _results.value = UiState.Success(data)
+            _results.value = try {
+                UiState.Success(AnimeRepository.search(newQuery.trim()))
             } catch (e: Exception) {
-                _results.value = UiState.Error(e.message ?: "Search failed")
+                UiState.Error(e.message ?: "Falha na busca")
             }
         }
     }

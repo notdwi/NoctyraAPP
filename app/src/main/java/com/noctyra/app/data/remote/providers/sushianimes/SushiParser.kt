@@ -3,13 +3,12 @@ package com.noctyra.app.data.remote.providers.sushianimes
 import com.noctyra.app.data.model.Anime
 import com.noctyra.app.data.model.AnimeDetail
 import com.noctyra.app.data.model.Episode
-import com.noctyra.app.data.remote.http.HttpClient
+import com.noctyra.app.data.model.HomeFeed
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 
-// Responsible for parsing SushiAnimes HTML pages into domain models
 internal object SushiParser {
 
-    // Returns list of (slug, title, posterUrl, isMovie)
     fun parseSearchResults(doc: Document): List<Pair<String, Boolean>> {
         val animePattern = Regex("^/anime/([a-z0-9-]+-\\d+)$")
         val moviePattern = Regex("^/assistir/([a-z0-9-]+-\\d+)$")
@@ -33,18 +32,16 @@ internal object SushiParser {
         return results
     }
 
-    // Enriched version: extracts title + poster from search card HTML directly
     fun parseSearchCards(doc: Document): List<Anime> {
         val animePattern = Regex("^/anime/([a-z0-9-]+-\\d+)$")
         val moviePattern = Regex("^/assistir/([a-z0-9-]+-\\d+)$")
         val seen = mutableSetOf<String>()
         val results = mutableListOf<Anime>()
 
-        // Try article cards first (WP theme typical structure)
         val cards = doc.select("article.TPostMv, article.TPost, .TPostMv, .TPost, .flw-item, .film-poster, a.TPostMv")
         if (cards.isNotEmpty()) {
             cards.forEach { card ->
-                val link = card.selectFirst("a[href]") ?: card as? org.jsoup.nodes.Element ?: return@forEach
+                val link = card.selectFirst("a[href]") ?: card as? Element ?: return@forEach
                 val href = link.attr("href").trimEnd('/')
                 val path = try { java.net.URI(href).path?.trimEnd('/') ?: return@forEach } catch (_: Exception) { return@forEach }
 
@@ -74,7 +71,6 @@ internal object SushiParser {
             if (results.isNotEmpty()) return results
         }
 
-        // Fallback: extract from any links on the page
         doc.select("a[href*=/anime/], a[href*=/assistir/]").forEach { link ->
             val href = link.attr("href").trimEnd('/')
             val path = try { java.net.URI(href).path?.trimEnd('/') ?: return@forEach } catch (_: Exception) { return@forEach }
@@ -105,41 +101,110 @@ internal object SushiParser {
     }
 
 
-    fun parseLatestReleases(doc: Document): List<Triple<String, String, String>> {
-        // Returns list of (slug, title, thumbUrl)
-        val seen = mutableSetOf<String>()
-        val results = mutableListOf<Triple<String, String, String>>()
-        val epPattern = Regex("-(\\d+)-season-(\\d+)-episode/?$")
+    private val animePathRegex = Regex("^/anime/([a-z0-9-]+-\\d+)$")
+    private val moviePathRegex = Regex("^/assistir/([a-z0-9-]+-\\d+)$")
+    private val episodePathRegex = Regex("""^/anime/([a-z0-9-]+-\d+)-(\d+)-season-(\d+)-episode$""")
+    private val seasonEpisodeRegex = Regex("""(\d+)\D+(\d+)""")
 
-        doc.select("a[href*=-season-]").forEach { link ->
-            val href = link.attr("href").trim()
-            if (href.isEmpty()) return@forEach
-            val path = try {
-                java.net.URI(href).path?.trimEnd('/') ?: return@forEach
-            } catch (_: Exception) { return@forEach }
+    private fun pathOf(href: String): String? =
+        runCatching { java.net.URI(href.trim()).path?.trimEnd('/') }.getOrNull()
 
-            val baseSlug = path.substringAfterLast("/")
-            val match = epPattern.find(baseSlug) ?: return@forEach
-            val slugStr = baseSlug.substring(0, match.range.first)
-
-            if (!seen.add(slugStr)) return@forEach
-
-            val title = link.select(".list-title").first()?.text()?.trim()
-                ?: link.select(".epx-desc").first()?.text()?.trim()
-                ?: SushiUtils.titleFromSlug(slugStr)
-
-            var thumbUrl = ""
-            for (sel in listOf(".media-episode", ".epx-thumb", "[data-src]")) {
-                val v = link.select(sel).first()?.attr("data-src")?.trim() ?: ""
-                if (v.isNotEmpty()) { thumbUrl = v; break }
-            }
-            if (thumbUrl.isNotEmpty() && !thumbUrl.startsWith("http")) {
-                thumbUrl = "${SushiUrls.BASE}$thumbUrl"
-            }
-            results.add(Triple(slugStr, title, thumbUrl))
-        }
-        return results
+    private fun appSlugFromHref(href: String): Pair<String, Boolean>? {
+        val path = pathOf(href) ?: return null
+        animePathRegex.find(path)?.let { return it.groupValues[1] to false }
+        moviePathRegex.find(path)?.let { return "${it.groupValues[1]}-filme" to true }
+        return null
     }
+
+    private fun Element.lazyImage(): String =
+        attr("data-src").ifEmpty { attr("data-bg") }.ifEmpty { attr("src") }.trim()
+
+    private fun formatScore(raw: String): String =
+        raw.trim().toDoubleOrNull()?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: ""
+
+    fun parseHome(doc: Document): HomeFeed {
+        val hero = doc.select("#slider a.slide").mapNotNull { a ->
+            val (slug, isMovie) = appSlugFromHref(a.attr("href")) ?: return@mapNotNull null
+            val header = a.select(".slide-header > div").map { it.text().trim() }
+                .filter { it.isNotEmpty() && it != "|" }
+            val banner = a.lazyImage()
+            Anime(
+                slug = slug,
+                title = a.selectFirst(".title")?.text()?.trim().orEmpty().ifEmpty { SushiUtils.titleFromSlug(slug) },
+                bannerUrl = banner,
+                posterUrl = banner,
+                synopsis = a.selectFirst(".description")?.text()?.trim().orEmpty(),
+                genres = header.drop(1),
+                subtitle = header.firstOrNull().orEmpty(),
+                isMovie = isMovie || header.firstOrNull()?.contains("filme", true) == true
+            )
+        }.distinctBy { it.slug }
+
+        var newEpisodes = emptyList<Anime>()
+        var trending = emptyList<Anime>()
+        var mostWatched = emptyList<Anime>()
+        var latestAnimes = emptyList<Anime>()
+        var latestMovies = emptyList<Anime>()
+
+        doc.select(".app-section").forEach { section ->
+            val heading = section.selectFirst(".app-heading .text")?.text()?.trim()?.lowercase() ?: return@forEach
+            when {
+                heading.contains("hentai") || heading.contains("cole") -> Unit
+                heading.contains("novos epis") -> newEpisodes = newEpisodes.ifEmpty { parseEpisodeCards(section) }
+                heading.contains("em alta") -> trending = trending.ifEmpty { parseListMovies(section) }
+                heading.contains("mais assistidos") -> mostWatched = mostWatched.ifEmpty { parseListMovies(section) }
+                heading.contains("animes mais recentes") -> latestAnimes = latestAnimes.ifEmpty { parseListMovies(section) }
+                heading.contains("filmes mais recentes") -> latestMovies = latestMovies.ifEmpty { parseListMovies(section) }
+            }
+        }
+
+        return HomeFeed(
+            hero = hero,
+            newEpisodes = newEpisodes,
+            trending = trending,
+            mostWatched = mostWatched,
+            latestAnimes = latestAnimes,
+            latestMovies = latestMovies,
+            fetchedAt = System.currentTimeMillis()
+        )
+    }
+
+    fun parseListMovies(section: Element): List<Anime> =
+        section.select(".list-movie").mapNotNull { card ->
+            val link = card.selectFirst("a.list-media[href], a.list-title[href]") ?: return@mapNotNull null
+            val (slug, isMovie) = appSlugFromHref(link.attr("href")) ?: return@mapNotNull null
+            Anime(
+                slug = slug,
+                title = card.selectFirst(".list-title")?.text()?.trim().orEmpty().ifEmpty { SushiUtils.titleFromSlug(slug) },
+                posterUrl = card.selectFirst(".media-cover")?.lazyImage().orEmpty(),
+                genres = listOfNotNull(card.selectFirst(".list-category")?.text()?.trim()?.takeIf { it.isNotEmpty() }),
+                rating = formatScore(card.selectFirst(".imdb span")?.text().orEmpty()),
+                isMovie = isMovie
+            )
+        }.distinctBy { it.slug }
+
+    private fun parseEpisodeCards(section: Element): List<Anime> =
+        section.select("a.list-movie[href]").mapNotNull { card ->
+            val path = pathOf(card.attr("href")) ?: return@mapNotNull null
+            val match = episodePathRegex.find(path) ?: return@mapNotNull null
+            val slug = match.groupValues[1]
+            val season = match.groupValues[2].toIntOrNull() ?: 1
+            val episode = match.groupValues[3].toIntOrNull() ?: 1
+            val thumb = card.selectFirst(".media-episode")?.lazyImage().orEmpty()
+            val label = card.selectFirst(".list-category")?.text()?.trim().orEmpty()
+            val (s, e) = seasonEpisodeRegex.find(label)?.let {
+                (it.groupValues[1].toIntOrNull() ?: season) to (it.groupValues[2].toIntOrNull() ?: episode)
+            } ?: (season to episode)
+            Anime(
+                slug = slug,
+                title = card.selectFirst(".list-title")?.text()?.trim().orEmpty().ifEmpty { SushiUtils.titleFromSlug(slug) },
+                posterUrl = thumb,
+                bannerUrl = thumb,
+                subtitle = "T$s • EP $e",
+                latestSeason = s,
+                latestEpisode = e
+            )
+        }.distinctBy { "${it.slug}/${it.latestSeason}/${it.latestEpisode}" }
 
     fun parseAnimeDetail(slug: String, resolvedSlug: String, isMovie: Boolean, doc: Document): AnimeDetail {
         val title = doc.select("h1#title").first()?.text()?.trim() ?: ""

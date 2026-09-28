@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Noctyra</string>
+    <string name="download_channel_name">Downloads</string>
+    <string name="download_channel_description">Progresso dos episódios baixados</string>
+    <string name="download_in_progress">Baixando episódios</string>
+</resources>
