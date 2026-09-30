@@ -10,6 +10,7 @@ import com.noctyra.app.data.local.AppSettings
 import com.noctyra.app.data.local.LibraryStore
 import com.noctyra.app.data.remote.http.HttpClient
 import com.noctyra.app.data.repository.AnimeRepository
+import com.noctyra.app.discord.DiscordPresence
 import com.noctyra.app.download.DownloadCenter
 
 class NoctyraApplication : Application(), ImageLoaderFactory {
@@ -21,6 +22,7 @@ class NoctyraApplication : Application(), ImageLoaderFactory {
         AnimeRepository.init(this)
         LibraryStore.init(this)
         DownloadCenter.init(this)
+        DiscordPresence.init(this)
     }
 
     override fun newImageLoader(): ImageLoader {

@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.noctyra.app.discord.DiscordPresence
 import com.noctyra.app.download.DownloadCenter
 import com.noctyra.app.ui.navigation.NoctyraNavHost
 import com.noctyra.app.ui.theme.NoctyraTheme
@@ -22,6 +23,9 @@ class MainActivity : ComponentActivity() {
                 NoctyraNavHost()
             }
         }
-        window.decorView.post { DownloadCenter.start() }
+        window.decorView.post {
+            DownloadCenter.start()
+            DiscordPresence.attach(this)
+        }
     }
 }

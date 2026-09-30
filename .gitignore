@@ -1,3 +1,6 @@
 keystore.properties
 *.jks
 *.keystore
+app/libs/*.aar
+app/discord-sdk/
+app/.cxx/

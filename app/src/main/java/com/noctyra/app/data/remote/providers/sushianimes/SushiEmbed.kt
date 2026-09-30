@@ -11,6 +11,7 @@ import org.jsoup.nodes.Document
 internal object SushiEmbed {
     private val playerEmbedRegex  = Regex("""var\s+playerEmbed\s*=\s*"([^"]+)"""")
     private val playerIsHlsRegex  = Regex("""window\.playerIsHls\s*=\s*(true|false)""")
+    private val noReferrerRegex   = Regex("""name=["']referrer["']\s+content=["']no-referrer["']""", RegexOption.IGNORE_CASE)
 
     // Regexes to find video URLs directly inside any HTML page
     private val genericVideoUrlRegex = Regex(
@@ -84,7 +85,7 @@ internal object SushiEmbed {
                     host       = "Direct",
                     streamType = streamType,
                     streamUrl  = mediaUrl,
-                    headers    = mapOf("Referer" to "${SushiUrls.BASE}/"),
+                    headers    = if (noReferrerRegex.containsMatchIn(candidate)) emptyMap() else mapOf("Referer" to "${SushiUrls.BASE}/"),
                     notes      = if (isHls) listOf("HLS .webp extension = MPEG-TS") else emptyList()
                 )
             }

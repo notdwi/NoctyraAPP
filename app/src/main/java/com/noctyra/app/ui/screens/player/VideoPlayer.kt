@@ -48,6 +48,7 @@ fun VideoPlayer(
     onProgress: (Long, Long) -> Unit,
     onEnded: () -> Unit,
     onNearEnd: () -> Unit,
+    onPlaybackInfo: (Boolean, Long, Long) -> Unit,
     onFullscreenToggle: () -> Unit
 ) {
     val context = LocalContext.current
@@ -55,6 +56,7 @@ fun VideoPlayer(
     val currentOnProgress by rememberUpdatedState(onProgress)
     val currentOnEnded by rememberUpdatedState(onEnded)
     val currentOnNearEnd by rememberUpdatedState(onNearEnd)
+    val currentOnInfo by rememberUpdatedState(onPlaybackInfo)
     val currentActions by rememberUpdatedState(
         object : PlayerActions {
             override fun onPrevious() = onPrevious()
@@ -91,6 +93,16 @@ fun VideoPlayer(
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                currentOnInfo(isPlaying, player.currentPosition, player.duration.coerceAtLeast(0))
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int
+            ) {
+                currentOnInfo(player.isPlaying, newPosition.positionMs, player.duration.coerceAtLeast(0))
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) {
                     val dur = player.duration

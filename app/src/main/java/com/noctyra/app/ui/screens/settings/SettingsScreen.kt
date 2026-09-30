@@ -30,6 +30,7 @@ import coil.imageLoader
 import com.noctyra.app.data.local.AppSettings
 import com.noctyra.app.data.local.LibraryStore
 import com.noctyra.app.data.repository.AnimeRepository
+import com.noctyra.app.discord.DiscordPresence
 import com.noctyra.app.download.DownloadCenter
 import com.noctyra.app.download.DownloadStatus
 import com.noctyra.app.ui.components.*
@@ -48,6 +49,7 @@ fun ProfileScreen(onOpenParty: () -> Unit, onOpenDownloads: () -> Unit, onOpenHi
     val downloads by DownloadCenter.downloads.collectAsStateWithLifecycle()
     val lite by AppSettings.liteMode.collectAsStateWithLifecycle()
     val autoplay by AppSettings.autoplayNext.collectAsStateWithLifecycle()
+    val discordUser by DiscordPresence.user.collectAsStateWithLifecycle()
     var cacheSize by remember { mutableLongStateOf(-1L) }
     var confirmClear by remember { mutableStateOf(false) }
 
@@ -69,8 +71,11 @@ fun ProfileScreen(onOpenParty: () -> Unit, onOpenDownloads: () -> Unit, onOpenHi
         ) {
             ProfileAvatar(size = 96)
             Spacer(Modifier.height(12.dp))
-            Text("Noctyra", style = MaterialTheme.typography.headlineMedium)
-            Text("ANIMES SEM LIMITES", color = TextSecondary, fontSize = 10.sp, letterSpacing = 3.sp)
+            Text(discordUser?.name ?: "Noctyra", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                if (discordUser != null) "CONECTADO AO DISCORD" else "ANIMES SEM LIMITES",
+                color = TextSecondary, fontSize = 10.sp, letterSpacing = 3.sp
+            )
         }
 
         Row(
@@ -81,6 +86,8 @@ fun ProfileScreen(onOpenParty: () -> Unit, onOpenDownloads: () -> Unit, onOpenHi
             StatCard("${history.size}", "Episódios vistos", Modifier.weight(1f))
             StatCard("${downloads.values.count { it.status == DownloadStatus.COMPLETED }}", "Baixados", Modifier.weight(1f))
         }
+
+        DiscordSettingsGroup()
 
         SettingsGroup("Juntos") {
             SettingsRow(Icons.Default.Groups, "Party", "Crie uma sala e assista com amigos, com chat", onClick = onOpenParty)
@@ -157,7 +164,7 @@ private fun StatCard(value: String, label: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
     Text(
         title.uppercase(),
         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp),
@@ -176,7 +183,7 @@ private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> 
 }
 
 @Composable
-private fun NoctyraSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun NoctyraSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
     Switch(
         checked = checked,
         onCheckedChange = onChange,

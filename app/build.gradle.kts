@@ -10,6 +10,7 @@ plugins {
 android {
     namespace = "com.noctyra.app"
     compileSdk = 35
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.noctyra.app"
@@ -17,6 +18,16 @@ android {
         targetSdk = 34
         versionCode = 3
         versionName = "2.1.0"
+
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
+        manifestPlaceholders["discordAppId"] = "1554855985305096232"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     val keystoreFile = rootProject.file("keystore.properties")
@@ -56,6 +67,7 @@ android {
 
     packaging {
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "DebugProbesKt.bin", "kotlin-tooling-metadata.json")
+        jniLibs.useLegacyPackaging = true
     }
 }
 
@@ -88,6 +100,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+
+    implementation(files("libs/discord_partner_sdk.aar"))
+    implementation("androidx.browser:browser:1.8.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 

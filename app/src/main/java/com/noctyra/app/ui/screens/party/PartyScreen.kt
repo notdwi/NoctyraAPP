@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noctyra.app.data.local.AppSettings
 import com.noctyra.app.data.model.cleanTitle
+import com.noctyra.app.discord.DiscordPresence
 import com.noctyra.app.party.Party
 import com.noctyra.app.party.PartySession
 import com.noctyra.app.party.PartyState
@@ -37,7 +38,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PartyScreen(onBack: () -> Unit, onPickAnime: () -> Unit, onOpenPlayer: (PartyState) -> Unit) {
     val session by Party.session.collectAsStateWithLifecycle()
-    var nick by remember { mutableStateOf(AppSettings.nick) }
+    var nick by remember { mutableStateOf(AppSettings.nick.ifEmpty { DiscordPresence.user.value?.name.orEmpty() }) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 

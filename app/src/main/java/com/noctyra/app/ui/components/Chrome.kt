@@ -20,19 +20,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noctyra.app.R
+import com.noctyra.app.discord.DiscordPresence
 import com.noctyra.app.ui.theme.*
 
 data class Category(val name: String, val slug: String, val colors: List<Color>, val icon: ImageVector)
@@ -104,23 +106,25 @@ fun BrandHeader(onSearch: () -> Unit, onProfile: () -> Unit, modifier: Modifier 
 
 @Composable
 fun ProfileAvatar(size: Int, onClick: (() -> Unit)? = null) {
-    val ring = remember { Brush.linearGradient(listOf(Pink, PinkLight, Color(0xFF8B5CF6))) }
+    val user by DiscordPresence.user.collectAsStateWithLifecycle()
     Box(
         Modifier
             .size(size.dp)
-            .clip(CircleShape)
-            .background(ring)
-            .padding(2.dp)
             .clip(CircleShape)
             .background(SurfaceElevated)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(R.drawable.noc_logo),
-            contentDescription = "Perfil",
-            modifier = Modifier.fillMaxSize(0.62f)
-        )
+        val avatar = user?.avatarUrl.orEmpty()
+        if (avatar.isNotEmpty()) {
+            NetImage(avatar, Modifier.fillMaxSize(), contentDescription = user?.name)
+        } else {
+            Image(
+                painter = painterResource(R.drawable.noc_logo),
+                contentDescription = "Perfil",
+                modifier = Modifier.fillMaxSize(0.62f)
+            )
+        }
     }
 }
 

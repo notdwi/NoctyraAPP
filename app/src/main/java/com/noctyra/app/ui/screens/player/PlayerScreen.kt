@@ -27,6 +27,7 @@ import com.noctyra.app.data.local.WatchProgress
 import com.noctyra.app.data.model.Episode
 import com.noctyra.app.data.model.UiState
 import com.noctyra.app.data.repository.AnimeRepository
+import com.noctyra.app.discord.DiscordPresence
 import com.noctyra.app.party.Party
 import com.noctyra.app.party.partyKey
 import com.noctyra.app.ui.components.*
@@ -56,6 +57,7 @@ fun PlayerScreen(
 
     LaunchedEffect(slug, season, episode) { viewModel.load(slug, season, episode) }
     FullscreenEffect(isFullscreen)
+    DisposableEffect(slug, season, episode) { onDispose { DiscordPresence.clear() } }
     BackHandler(enabled = isFullscreen) { isFullscreen = false }
 
     val ordered = remember(detail) { detail?.episodes?.sortedWith(compareBy({ it.season }, { it.number })).orEmpty() }
@@ -147,6 +149,10 @@ fun PlayerScreen(
                                 currentNext?.let { n ->
                                     scope.launch { runCatching { AnimeRepository.getStream(slug, n.season, n.number) } }
                                 }
+                            },
+                            onPlaybackInfo = { playing, pos, dur ->
+                                val m = currentMeta
+                                DiscordPresence.watching(m.title, season, episode, m.episodeTitle, m.poster, pos, dur, playing)
                             },
                             onFullscreenToggle = { isFullscreen = !isFullscreen }
                         )
