@@ -180,7 +180,11 @@ fun EmbedPlayer(url: String) {
                 settings.mediaPlaybackRequiresUserGesture = false
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
-                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
+                settings.javaScriptCanOpenWindowsAutomatically = false
+                settings.setSupportMultipleWindows(false)
                 webViewClient = WebViewClient()
                 webChromeClient = WebChromeClient()
                 setBackgroundColor(android.graphics.Color.BLACK)
